@@ -1,0 +1,9 @@
+LICENSE
+README.md
+pyproject.toml
+codeSpectra/__init__.py
+codeSpectra/designSpectra.py
+codeSpectra.egg-info/PKG-INFO
+codeSpectra.egg-info/SOURCES.txt
+codeSpectra.egg-info/dependency_links.txt
+codeSpectra.egg-info/top_level.txt

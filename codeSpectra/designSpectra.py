@@ -3,9 +3,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from scipy.interpolate import interp1d
 
-from plotApeConfig import blueAPE, set_default_plot_params
-set_default_plot_params()
-
 class NCh433:
     """
     A class to represent the NCh433 code parameters for seismic design.
@@ -254,7 +251,7 @@ class NCh433:
         Ro_intersection=interp_funct(1.0)
         
         ax[0,0].plot(Ro_array, R_mod_x, color='k', linewidth=1.5, marker='o', label=f'R* for Tx={np.round(Tx,2)}')
-        ax[0,0].plot([Ro_min, Ro_max],[Ro_min, Ro_max], color=blueAPE, linewidth=1, linestyle='-', label='Ro')
+        ax[0,0].plot([Ro_min, Ro_max],[Ro_min, Ro_max], color='#000077', linewidth=1, linestyle='-', label='Ro')
         ax[0,0].axvline(x=Ro_intersection, color='red', linestyle='--', linewidth=1.0)
         ax[0,0].annotate(f'Ro = {np.round(Ro_intersection,2)}', 
                         (Ro_intersection-0.4,Ro_min), 
@@ -297,7 +294,7 @@ class NCh433:
         
         ax[1,0].plot(Ro_array, R_mod_y, color='k', linewidth=1.5, marker='o', label=f'R* for Ty={np.round(Ty,2)}')
         ax[1,0].axvline(x=Ro_intersection, color='red', linestyle='--', linewidth=1.0)
-        ax[1,0].plot(Ro_array,Ro_array, color=blueAPE, linewidth=1, linestyle='-', label='Ro')
+        ax[1,0].plot(Ro_array,Ro_array, color='#000077', linewidth=1, linestyle='-', label='Ro')
         ax[1,0].annotate(f'Ro = {np.round(Ro_intersection,2)}', 
                          (Ro_intersection-0.4,Ro_min), 
                          ha='left',
@@ -386,15 +383,15 @@ class NCh433:
         
         return elastic_spectra
     
-    def plot_spectral_acceleration(self, ax=None, marker=None, linestyle='-', linewidth=1.5, label=None):
+    def plot_spectral_acceleration(self, ax=None, marker=None, linestyle='-', linewidth=1.5, label=None, scale_factor=1):
 
         T=self.elastic_spectra['T']
-        Sa=self.elastic_spectra['Sa']
+        Sa=self.elastic_spectra['Sa']*scale_factor
         
         if ax is None:
             fig, ax = plt.subplots(figsize=(10,5))
 
-            ax.plot(T, Sa, color=blueAPE, linewidth=linewidth, marker=marker, linestyle=linestyle, label=label)
+            ax.plot(T, Sa, color='#000077', linewidth=linewidth, marker=marker, linestyle=linestyle, label=label)
             ax.grid(True)
             ax.set_xlim(left=0)
             ax.set_ylim(bottom=0)
@@ -403,7 +400,7 @@ class NCh433:
             plt.show()
             
         else:
-            ax.plot(T, Sa, color=blueAPE, linewidth=linewidth, marker=marker, linestyle=linestyle, label=label)
+            ax.plot(T, Sa, color='#000077', linewidth=linewidth, marker=marker, linestyle=linestyle, label=label)
         
     def plot_inelastic_spectral_acceleration(self, R_mod, ax=None, marker=None, linestyle='-', linewidth=1.5, label=None):
         T = self.elastic_spectra['T']
@@ -423,7 +420,7 @@ class NCh433:
         if ax is None:
             fig, ax = plt.subplots(figsize=(10, 5))
 
-            ax.plot(T, Sa, color=blueAPE, linewidth=1.5, marker=marker, label='Elastic Spectrum', linestyle=linestyle)
+            ax.plot(T, Sa, color='#000077', linewidth=1.5, marker=marker, label='Elastic Spectrum', linestyle=linestyle)
             ax.plot(T, Sa_reduced, color='k', linewidth=1.5, marker=marker, label='Reduced Spectrum', linestyle=linestyle)
             
             # Horizontal line for Sa_lim
@@ -450,7 +447,7 @@ class NCh433:
             
             plt.show()
         else:
-            ax.plot(T, Sa, color=blueAPE, linewidth=1.5, marker=marker, label='Elastic Spectrum', linestyle=linestyle)
+            ax.plot(T, Sa, color='#000077', linewidth=1.5, marker=marker, label='Elastic Spectrum', linestyle=linestyle)
             ax.plot(T, Sa_reduced, color='k', linewidth=1.5, marker=marker, label='Reduced Spectrum', linestyle=linestyle)
             
             # Horizontal line for Sa_lim
