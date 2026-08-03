@@ -10,7 +10,7 @@ Every derived quantity carries the clause that authorises it.
 | Standard | Editions | Scope |
 | --- | --- | --- |
 | ASCE/SEI 7 | 7-10, 7-16, 7-22 | Design + MCEr spectra, vertical spectrum (7-16), SDC, ELF §12.8 |
-| NEC-SE-DS (Ecuador) | 2015 | Elastic, inelastic and displacement spectra, DBF base shear §6.3 |
+| NEC-SE-DS (Ecuador) | 2015 | Elastic, inelastic and displacement spectra, DBF base shear §6.3, Tabla 19 poblaciones |
 | NCh433 (Chile) | Of1996 Mod.2009 / DS 61-2011 | Elastic spectrum, `R*` reduction, `C` limits |
 
 ## Install
@@ -80,8 +80,58 @@ result.V, result.Ta, result.k
 
 ### Where `Z` comes from
 
-The standard route is to supply `Z` yourself, from NEC-SE-DS Figura 1 or the
-poblaciones list in Tabla 19 — that is what governs design in Ecuador.
+**Tabla 19 ships with the library** — all 515 poblaciones, transcribed from the
+standard. Look up by name, or by coordinates:
+
+```python
+from codeSpectra.codes.nec import Tabla19, Gazetteer, nec_site_from_poblacion
+
+t = Tabla19.load()
+t.by_name("Quito").Z          # 0.40  — case- and accent-insensitive
+t.by_name("cuenca").Z         # 0.25
+
+site = nec_site_from_poblacion(t.by_name("Guayaquil"), soil="D")
+site.Z_g, site.eta            # 0.40, 1.80  — region derived from the province
+```
+
+`region` (and so `η`) is derived from the provincia via §3.3.1's own grouping,
+including its explicit carve-out that Esmeraldas and Galápagos take the Sierra
+value despite Esmeraldas being coastal. Two entries the standard does *not*
+place — Santo Domingo de los Tsáchilas and "Zona no delimitada" — raise rather
+than being guessed, and need `region=` supplied.
+
+Thirty names are duplicated across provinces; `by_name` raises
+`AmbiguousPoblacion` listing the candidates (and reporting whether they even
+differ in `Z`) rather than silently picking one. Pass `provincia=` or `canton=`
+to resolve.
+
+#### Map-based lookup
+
+This implements NEC §3.1.1's own fallback for a site that is not itself listed:
+
+> *"Si se ha de diseñar una estructura en una población o zona que no consta en
+> la lista … debe escogerse el valor de la población más cercana."*
+
+```python
+gaz = Gazetteer({"Quito": (-0.1807, -78.4678), "Cuenca": (-2.9001, -79.0059)})
+# or from any GeoJSON point layer:
+# gaz = Gazetteer.from_file("ciudades.geojson")
+
+match = t.nearest(lat=-0.30, lon=-78.50, gaz, max_distance_km=100)
+match.poblacion.poblacion, match.distance_km, match.Z   # 'QUITO', 14.4, 0.40
+site = nec_site_from_poblacion(match, soil="D")
+```
+
+> **Coordinates are yours to supply.** NEC publishes names, not positions, so
+> `nearest()` takes a `Gazetteer`. Its coverage bounds the result —
+> `t.covered_by(gaz)` reports how much of the table it can place — and
+> `max_distance_km` refuses a match too far away to be *la población más
+> cercana* in any useful sense. The report reminds you to check Figura 1 for a
+> zone boundary between the site and the matched town.
+
+You can also just supply `Z` yourself, straight from Figura 1.
+
+#### External PSHA models
 
 Optionally, `Z` can be read off a published PSHA. codeSpectra ships **no
 third-party hazard data**; it ships the reader, and you point it at layers you
@@ -200,7 +250,7 @@ Table values are transcribed from the standards themselves, not from memory:
 - ASCE/SEI 7-16 Tables 11.4-1, 11.4-2, 11.9-1, 12.8-1, 12.8-2
 - ASCE/SEI 7-10 Tables 11.4-1, 11.4-2
 - ASCE/SEI 7-22 §11.4.2 site classes, §11.4.5.1 period list
-- NEC-SE-DS 2015 Tablas 1, 3, 4, 5, 6, and §6.3.3 / §6.3.5
+- NEC-SE-DS 2015 Tablas 1, 3, 4, 5, 6, 19, and §6.3.3 / §6.3.5
 - NCh433 Tablas 4.2, 6.1, 6.2, 6.3, 6.4
 
 The suite asserts every transcribed cell, checks the spectrum is continuous at
@@ -216,7 +266,8 @@ python -m pytest
 - Automatic retrieval of `Ss`/`S1` or MPRS ordinates from USGS — supply them.
 - Any bundled hazard data. The Ecuador PSHA reader ships without layers; see
   [Where `Z` comes from](#where-z-comes-from).
-- NEC Tabla 19 (poblaciones → `Z`) as a built-in lookup — still worth adding.
+- Coordinates for Tabla 19. NEC publishes names only, so `nearest()` needs a
+  gazetteer you supply.
 - NCh433 Eq. 6-11, the alternative `R*` for wall-type buildings.
 - ASCE 7 Chapter 21 site response analysis itself (the §21.3 floor is
   expressible via `floored_by`, but the study is yours to perform).
