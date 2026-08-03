@@ -22,7 +22,7 @@ The two are **not** interchangeable for long-period or irregular structures.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from functools import cached_property
 
@@ -100,8 +100,6 @@ class ASCE7_22:
     mprs_periods: tuple[float, ...] = ()
     mprs_mcer: tuple[float, ...] = ()
     default_site_conditions: bool = False
-    _SDS_input: float | None = field(default=None, repr=False)
-    _SD1_input: float | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "site_class", SiteClass(self.site_class))
@@ -113,6 +111,59 @@ class ASCE7_22:
             )
         if self.TL <= 0.0:
             raise InvalidInput("TL must be positive.")
+        self._reject_incomplete_construction()
+
+    def _reject_incomplete_construction(self) -> None:
+        """Refuse an instance that would report ``SDS = SD1 = 0``.
+
+        ``SMS``/``SM1`` default to zero, so a direct construction that omits
+        them builds happily and then reports zero design acceleration — the
+        complaint surfaces much later, from somewhere unrelated. A silently
+        zero ``SDS`` in a seismic design library can reach a model, so it is
+        caught at construction instead.
+
+        The natural wrong call is ``ASCE7_22(Ss=..., S1=...)`` by someone
+        carrying over habits from :class:`~codeSpectra.codes.asce7.ASCE7_16`,
+        so that case gets its own explanation.
+        """
+        if self.basis is SpectrumBasis.TWO_PERIOD:
+            if self.SMS <= 0.0:
+                raise InvalidInput(
+                    "ASCE7_22 on the two-period basis needs a positive SMS. "
+                    "Build it with ASCE7_22.from_site_adjusted(SMS=..., SM1=...)."
+                )
+            return
+        if self.mprs_mcer:
+            return
+
+        if self.SMS > 0.0:
+            remedy = (
+                "You supplied SMS/SM1 but no multi-period ordinates. Use "
+                "ASCE7_22.from_site_adjusted(SMS=..., SM1=...) for the "
+                "§11.4.5.2 two-period spectrum."
+            )
+        elif self.Ss is not None or self.S1 is not None:
+            remedy = (
+                "You supplied Ss/S1. ASCE 7-22 §11.4.3 reads Ss, S1, SMS and "
+                "SM1 directly from the USGS Seismic Design Geodatabase for the "
+                "site class, and the edition deleted the Fa/Fv tables of 7-16, "
+                "so SMS/SM1 cannot be derived from Ss/S1 here. Read SMS and SM1 "
+                "from the geodatabase for the same location and site class and "
+                "use ASCE7_22.from_site_adjusted(...), or pass the multi-period "
+                "ordinates to ASCE7_22.from_mprs(...). If those Ss/S1 came from "
+                "ASCE 7-16 mapping, use the ASCE7_16 class instead."
+            )
+        else:
+            remedy = (
+                "Use ASCE7_22.from_mprs(periods, sa_mcer, ...) for the "
+                "§11.4.5.1 multi-period spectrum, or "
+                "ASCE7_22.from_site_adjusted(SMS=..., SM1=...) for the "
+                "§11.4.5.2 two-period spectrum."
+            )
+        raise InvalidInput(
+            "ASCE7_22 was constructed without the ground motion it needs, so "
+            f"SDS and SD1 would both be 0. {remedy}"
+        )
 
     # -- Constructors ------------------------------------------------------
     @classmethod

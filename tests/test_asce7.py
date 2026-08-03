@@ -357,3 +357,56 @@ class TestReports:
             ASCE7_22.from_site_adjusted(SMS=1.5, SM1=1.0).report(),
         ):
             report.to_text().encode("cp1252")
+
+
+class TestASCE722IncompleteConstruction:
+    """A silently-zero SDS is the failure this library exists to prevent.
+
+    SMS/SM1 default to zero, so a direct construction that omits them used to
+    build happily and report SDS = SD1 = 0. The complaint then surfaced much
+    later and from somewhere unrelated, by which point a zero design
+    acceleration could already have reached a model.
+    """
+
+    def test_Ss_S1_alone_is_rejected(self) -> None:
+        """The natural wrong call for someone carrying 7-16 habits over."""
+        with pytest.raises(InvalidInput, match="would both be 0"):
+            ASCE7_22(Ss=1.5, S1=0.6, site_class="D")
+
+    def test_Ss_S1_message_explains_the_7_22_change(self) -> None:
+        with pytest.raises(InvalidInput) as exc:
+            ASCE7_22(Ss=1.5, S1=0.6, site_class="D")
+        message = str(exc.value)
+        assert "11.4.3" in message
+        assert "Geodatabase" in message
+        assert "from_site_adjusted" in message
+        assert "ASCE7_16" in message          # where 7-16 Ss/S1 actually belong
+
+    def test_bare_construction_is_rejected(self) -> None:
+        with pytest.raises(InvalidInput, match="from_mprs"):
+            ASCE7_22()
+
+    def test_SMS_without_mprs_points_at_the_two_period_constructor(self) -> None:
+        """Right values, wrong basis: default basis is multi-period."""
+        with pytest.raises(InvalidInput, match="from_site_adjusted"):
+            ASCE7_22(SMS=1.5, SM1=1.02, site_class="CD")
+
+    def test_two_period_basis_needs_positive_SMS(self) -> None:
+        with pytest.raises(InvalidInput, match="positive SMS"):
+            ASCE7_22(basis=SpectrumBasis.TWO_PERIOD, SMS=0.0, site_class="CD")
+
+    def test_supported_constructors_are_unaffected(self) -> None:
+        assert ASCE7_22.from_site_adjusted(
+            SMS=1.5, SM1=1.02, site_class="CD"
+        ).SDS == pytest.approx(1.0)
+        assert ASCE7_22.from_mprs(
+            [0.0, 1.0], [1.5, 0.75], site_class="CD"
+        ).design_spectrum().at(0.5) == pytest.approx(0.75)
+
+    def test_no_instance_can_report_zero_SDS(self) -> None:
+        """The invariant the guard exists to hold."""
+        for site in (
+            ASCE7_22.from_site_adjusted(SMS=1.5, SM1=1.02, site_class="CD"),
+            ASCE7_22.from_mprs([0.0, 1.0], [1.5, 0.75], site_class="CD"),
+        ):
+            assert site.SDS > 0.0
