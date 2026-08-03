@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from .nec_se_ds_2015 import NECSEDS2015
 
 __all__ = [
+    "GEONAMES_ATTRIBUTION",
     "AmbiguousPoblacion",
     "Gazetteer",
     "Poblacion",
@@ -49,6 +50,15 @@ __all__ = [
 ]
 
 _TABLE_PATH = Path(__file__).parent / "tables" / "tabla19.json"
+_GAZETTEER_PATH = Path(__file__).parent / "tables" / "gazetteer_geonames.json"
+
+#: Attribution required by the GeoNames licence (CC BY 4.0). Reproduce it
+#: wherever coordinates from :meth:`Gazetteer.geonames` are published.
+GEONAMES_ATTRIBUTION = (
+    "Place coordinates derived from the GeoNames geographical database "
+    "(https://www.geonames.org/), used under CC BY 4.0 "
+    "(https://creativecommons.org/licenses/by/4.0/)."
+)
 
 TABLA_19_REF = ClauseRef(
     standard="NEC-SE-DS",
@@ -258,32 +268,71 @@ class PoblacionMatch:
 class Gazetteer:
     """Coordinates for place names, used by :meth:`Tabla19.nearest`.
 
-    NEC publishes no coordinates for Tabla 19, so they have to come from
-    somewhere else. Any source works as long as it can be expressed as
-    ``name -> (lat, lon)``; names are matched on the same normalised key the
-    table uses, so accents and parenthetical aliases do not matter.
+    NEC publishes no coordinates for Tabla 19, so they come from elsewhere.
+    Names are matched on the same normalised key the table uses, so accents
+    and parenthetical aliases do not matter.
+
+    Entries may be **qualified by province**, and for Ecuador they should be:
+    24 names in Tabla 19 occur in more than one province, and 20 of those
+    carry different ``Z``. A gazetteer keyed on name alone would give all of
+    them one coordinate, so :meth:`Tabla19.nearest` could return the wrong
+    town and hence the wrong design value. Qualified entries are looked up on
+    ``(name, provincia)`` and never leak across provinces.
 
     Examples
     --------
-    >>> g = Gazetteer({"Quito": (-0.1807, -78.4678),
-    ...                "Guayaquil": (-2.1709, -79.9224)})
-    >>> len(g)
-    2
+    Unqualified, for a quick lookup where names are unambiguous::
+
+        Gazetteer({"Quito": (-0.1807, -78.4678)})
+
+    Qualified, the safe form::
+
+        Gazetteer({("Bolivar", "CARCHI"): (0.50, -77.90),
+                   ("Bolivar", "ESMERALDAS"): (0.83, -78.20)})
+
+    Or use the bundled GeoNames data: :meth:`geonames`.
     """
 
-    __slots__ = ("_points",)
+    __slots__ = ("_plain", "_qualified")
 
-    def __init__(self, points: Mapping[str, tuple[float, float]]) -> None:
-        resolved: dict[str, tuple[float, float]] = {}
+    def __init__(
+        self,
+        points: Mapping[str | tuple[str, str], tuple[float, float]],
+    ) -> None:
+        qualified: dict[tuple[str, str], tuple[float, float]] = {}
+        plain: dict[str, tuple[float, float]] = {}
         for name, (lat, lon) in points.items():
             if not -90.0 <= lat <= 90.0 or not -180.0 <= lon <= 180.0:
                 raise InvalidInput(
                     f"Coordinates for {name!r} are out of range: ({lat}, {lon})."
                 )
-            resolved[_normalise(name)] = (float(lat), float(lon))
-        if not resolved:
+            point = (float(lat), float(lon))
+            if isinstance(name, tuple):
+                if len(name) != 2:
+                    raise InvalidInput(
+                        f"A qualified key must be (name, provincia); got {name!r}."
+                    )
+                qualified[(_normalise(name[0]), _normalise(name[1]))] = point
+            else:
+                plain[_normalise(name)] = point
+        if not qualified and not plain:
             raise InvalidInput("A gazetteer needs at least one place.")
-        self._points = resolved
+        self._qualified = qualified
+        self._plain = plain
+
+    @classmethod
+    def geonames(cls) -> Gazetteer:
+        """The GeoNames coordinates bundled with codeSpectra.
+
+        Covers 447 of the 507 ``(poblacion, provincia)`` pairs in Tabla 19
+        (88%), each matched to a GeoNames populated place that agrees on the
+        province. Derived from the GeoNames geographical database, used under
+        CC BY 4.0 — see :data:`GEONAMES_ATTRIBUTION`.
+
+        Coverage is not complete; :meth:`Tabla19.covered_by` reports what a
+        given gazetteer can place.
+        """
+        return _load_geonames()
 
     @classmethod
     def from_geojson_points(
@@ -299,7 +348,7 @@ class Gazetteer:
         features = data.get("features")
         if not isinstance(features, list):
             raise InvalidInput("Expected a GeoJSON FeatureCollection.")
-        points: dict[str, tuple[float, float]] = {}
+        points: dict[str | tuple[str, str], tuple[float, float]] = {}
         for feature in features:
             if not isinstance(feature, dict):
                 continue
@@ -335,18 +384,44 @@ class Gazetteer:
         payload = json.loads(text[start:].rstrip().rstrip(";"))
         return cls.from_geojson_points(payload, name_property=name_property)
 
-    def get(self, name: str) -> tuple[float, float] | None:
-        """Coordinates for ``name``, or None if it is not in the gazetteer."""
-        return self._points.get(_normalise(name))
+    def get(
+        self, name: str, provincia: str | None = None
+    ) -> tuple[float, float] | None:
+        """Coordinates for a place, or None if the gazetteer does not have it.
+
+        With ``provincia`` given, a province-qualified entry is preferred and
+        an entry for the *same name in a different province* is never
+        returned. Unqualified entries still match, since supplying them is the
+        caller's explicit choice to ignore the distinction.
+        """
+        key = _normalise(name)
+        if provincia is not None:
+            qualified = self._qualified.get((key, _normalise(provincia)))
+            if qualified is not None:
+                return qualified
+            # Fall through to an unqualified entry only; never to a qualified
+            # entry belonging to some other province.
+            return self._plain.get(key)
+        if key in self._plain:
+            return self._plain[key]
+        matches = [v for (n, _), v in self._qualified.items() if n == key]
+        return matches[0] if len(matches) == 1 else None
 
     def __contains__(self, name: object) -> bool:
-        return isinstance(name, str) and _normalise(name) in self._points
+        if isinstance(name, tuple) and len(name) == 2:
+            return self.get(name[0], name[1]) is not None
+        return isinstance(name, str) and self.get(name) is not None
 
     def __len__(self) -> int:
-        return len(self._points)
+        return len(self._qualified) + len(self._plain)
 
     def __repr__(self) -> str:
-        return f"<Gazetteer {len(self._points)} places>"
+        parts = []
+        if self._qualified:
+            parts.append(f"{len(self._qualified)} province-qualified")
+        if self._plain:
+            parts.append(f"{len(self._plain)} unqualified")
+        return f"<Gazetteer {', '.join(parts)}>"
 
 
 class Tabla19(Sequence[Poblacion]):
@@ -480,7 +555,7 @@ class Tabla19(Sequence[Poblacion]):
 
         best: tuple[float, Poblacion] | None = None
         for row in self._rows:
-            point = gazetteer.get(row.poblacion)
+            point = gazetteer.get(row.poblacion, row.provincia)
             if point is None:
                 continue
             d = _haversine_km(lat, lon, point[0], point[1])
@@ -501,7 +576,7 @@ class Tabla19(Sequence[Poblacion]):
                 "limit. Widen the gazetteer, raise max_distance_km, or read Z "
                 "from Figura 1 directly."
             )
-        point = gazetteer.get(row.poblacion)
+        point = gazetteer.get(row.poblacion, row.provincia)
         assert point is not None
         return PoblacionMatch(
             poblacion=row, distance_km=distance,
@@ -510,7 +585,10 @@ class Tabla19(Sequence[Poblacion]):
 
     def covered_by(self, gazetteer: Gazetteer) -> tuple[Poblacion, ...]:
         """Entries the gazetteer can place — use to check its coverage."""
-        return tuple(r for r in self._rows if gazetteer.get(r.poblacion) is not None)
+        return tuple(
+            r for r in self._rows
+            if gazetteer.get(r.poblacion, r.provincia) is not None
+        )
 
     # -- Summary --------------------------------------------------------------
     @property
@@ -525,6 +603,16 @@ class Tabla19(Sequence[Poblacion]):
 
     def __repr__(self) -> str:
         return f"<Tabla19 {len(self._rows)} poblaciones, {len(self.provincias)} provincias>"
+
+
+@lru_cache(maxsize=1)
+def _load_geonames() -> Gazetteer:
+    payload = json.loads(_GAZETTEER_PATH.read_text(encoding="utf-8"))
+    points: dict[str | tuple[str, str], tuple[float, float]] = {
+        (row[0], row[1]): (float(row[2]), float(row[3]))
+        for row in payload["rows"]
+    }
+    return Gazetteer(points)
 
 
 @lru_cache(maxsize=1)

@@ -341,3 +341,145 @@ class TestSiteConstruction:
             nec_site_from_poblacion(table.by_name(name)).report().to_text().encode(
                 "cp1252"
             )
+
+
+class TestGeoNamesGazetteer:
+    """The bundled GeoNames coordinates (CC BY 4.0)."""
+
+    @staticmethod
+    @pytest.fixture(scope="class")
+    def geo() -> Gazetteer:
+        return Gazetteer.geonames()
+
+    def test_loads(self, geo: Gazetteer) -> None:
+        assert len(geo) > 400
+
+    def test_coverage_of_the_table(self, table: Tabla19, geo: Gazetteer) -> None:
+        covered = table.covered_by(geo)
+        assert len(covered) / len(table) > 0.85
+
+    def test_attribution_is_exposed(self) -> None:
+        from codeSpectra.codes.nec.poblaciones import GEONAMES_ATTRIBUTION
+
+        assert "GeoNames" in GEONAMES_ATTRIBUTION
+        assert "CC BY 4.0" in GEONAMES_ATTRIBUTION
+
+    def test_data_file_records_its_licence(self) -> None:
+        import codeSpectra.codes.nec.poblaciones as mod
+
+        path = Path(mod.__file__).parent / "tables" / "gazetteer_geonames.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert "CC BY 4.0" in payload["licence"]
+        assert "geonames.org" in payload["source"]
+
+    @pytest.mark.parametrize(
+        ("name", "provincia", "lat", "lon"),
+        [
+            ("QUITO", "PICHINCHA", -0.22, -78.51),
+            ("GUAYAQUIL", "GUAYAS", -2.19, -79.89),
+            ("CUENCA", "AZUAY", -2.90, -79.00),
+            ("MANTA", "MANABI", -0.95, -80.73),
+            ("NUEVA LOJA", "SUCUMBIOS", 0.09, -76.89),
+        ],
+    )
+    def test_known_coordinates(
+        self, geo: Gazetteer, name: str, provincia: str, lat: float, lon: float
+    ) -> None:
+        point = geo.get(name, provincia)
+        assert point is not None
+        assert point[0] == pytest.approx(lat, abs=0.1)
+        assert point[1] == pytest.approx(lon, abs=0.1)
+
+    def test_every_coordinate_is_inside_ecuador(self, geo: Gazetteer) -> None:
+        table = Tabla19.load()
+        for row in table.covered_by(geo):
+            lat, lon = geo.get(row.poblacion, row.provincia)  # type: ignore[misc]
+            assert -5.1 <= lat <= 1.6, f"{row.poblacion} latitude {lat}"
+            assert -81.2 <= lon <= -75.1, f"{row.poblacion} longitude {lon}"
+
+    def test_nearest_finds_a_plausible_town(
+        self, table: Tabla19, geo: Gazetteer
+    ) -> None:
+        m = table.nearest(-2.90, -79.00, geo)          # Cuenca
+        assert m.poblacion.provincia == "AZUAY"
+        assert m.distance_km < 25.0
+
+    def test_nearest_across_the_country(
+        self, table: Tabla19, geo: Gazetteer
+    ) -> None:
+        """Anywhere in continental Ecuador should find a town within ~60 km."""
+        for lat, lon in [(-0.22, -78.51), (-2.19, -79.89), (0.96, -79.65),
+                         (-3.99, -79.20), (-1.05, -80.45), (0.09, -76.89)]:
+            assert table.nearest(lat, lon, geo).distance_km < 60.0
+
+
+class TestProvinceQualification:
+    """Twenty Tabla 19 names occur in several provinces with different Z."""
+
+    def test_qualified_entries_do_not_leak_across_provinces(self) -> None:
+        g = Gazetteer({
+            ("Bolivar", "CARCHI"): (0.50, -77.90),
+            ("Bolivar", "ESMERALDAS"): (0.83, -78.20),
+        })
+        assert g.get("Bolivar", "CARCHI") == (0.50, -77.90)
+        assert g.get("Bolivar", "ESMERALDAS") == (0.83, -78.20)
+
+    def test_unknown_province_does_not_fall_back_to_another(self) -> None:
+        g = Gazetteer({("Bolivar", "CARCHI"): (0.50, -77.90)})
+        assert g.get("Bolivar", "MANABI") is None
+
+    def test_ambiguous_unqualified_lookup_returns_nothing(self) -> None:
+        g = Gazetteer({
+            ("Bolivar", "CARCHI"): (0.50, -77.90),
+            ("Bolivar", "ESMERALDAS"): (0.83, -78.20),
+        })
+        assert g.get("Bolivar") is None
+
+    def test_unqualified_entries_still_match_a_province_query(self) -> None:
+        """Supplying a plain dict is an explicit choice to ignore provinces."""
+        g = Gazetteer({"Quito": (-0.18, -78.47)})
+        assert g.get("Quito", "PICHINCHA") == (-0.18, -78.47)
+
+    def test_qualified_key_must_be_a_pair(self) -> None:
+        with pytest.raises(InvalidInput, match=r"must be \(name, provincia\)"):
+            Gazetteer({("a", "b", "c"): (0.0, -78.0)})  # type: ignore[dict-item]
+
+    def test_duplicated_names_resolve_to_their_own_Z(self, table: Tabla19) -> None:
+        """The bug a name-only gazetteer would cause, pinned down."""
+        geo = Gazetteer.geonames()
+        duplicated = [
+            p for p in table
+            if len({q.provincia for q in table.find(p.poblacion)}) > 1
+            and len({q.Z for q in table.find(p.poblacion)}) > 1
+        ]
+        assert duplicated, "expected Tabla 19 to contain such names"
+        for row in duplicated:
+            point = geo.get(row.poblacion, row.provincia)
+            if point is None:
+                continue
+            match = table.nearest(point[0], point[1], geo)
+            # The nearest town to a town's own coordinates carries its own Z.
+            assert match.Z == pytest.approx(row.Z), (
+                f"{row.poblacion} ({row.provincia}) resolved to "
+                f"{match.poblacion.poblacion} ({match.poblacion.provincia})"
+            )
+
+
+class TestGlyphRepair:
+    """The NEC PDF font mis-encodes three accented capitals."""
+
+    def test_no_stray_glyphs_remain(self, table: Tabla19) -> None:
+        import unicodedata
+
+        for p in table:
+            for field in (p.poblacion, p.parroquia, p.canton, p.provincia):
+                for ch in field:
+                    if ch.isascii():
+                        continue
+                    assert unicodedata.category(ch) == "Lu", f"{ch!r} in {field!r}"
+                    assert ch in "ÑÁÉÍÓÚ", f"unexpected {ch!r} in {field!r}"
+
+    def test_repaired_names_are_present(self, table: Tabla19) -> None:
+        assert table.find("BAÑOS DE AGUA SANTA")
+        assert table.find("AMAGUAÑA")
+        assert table.find("SUCÚA")

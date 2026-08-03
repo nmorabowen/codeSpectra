@@ -1,6 +1,6 @@
 {
 "source": "NEC-SE-DS 2015, Tabla 19 - Poblaciones ecuatorianas y valor del factor Z (seccion 10.2)",
-"note": "Transcribed from the standard. Z is the design PGA on rock, fraction of g.",
+"note": "Transcribed from the standard. Z is the design PGA on rock, fraction of g. Three accented capitals mis-encoded by the PDF font were repaired: U+00D0 -> N-tilde, U+250C -> U-acute, U+00CB -> O-acute.",
 "fields": [
 "poblacion",
 "parroquia",
@@ -375,7 +375,7 @@
 ],
 [
 "CALPÍ",
-"CAÐI",
+"CAÑI",
 "COLTA",
 "CHIMBORAZO",
 0.35
@@ -2362,7 +2362,7 @@
 0.3
 ],
 [
-"SUC┌A",
+"SUCÚA",
 "SUCUA",
 "SUCUA",
 "MORONA SANTIAGO",
@@ -2502,7 +2502,7 @@
 0.35
 ],
 [
-"SIMËN BOLIVAR",
+"SIMÓN BOLIVAR",
 "PUERTO QUITO",
 "PUERTO QUITO",
 "PICHINCHA",
@@ -2545,7 +2545,7 @@
 ],
 [
 "UYUMBICHO",
-"AMAGUAÐA",
+"AMAGUAÑA",
 "QUITO",
 "PICHINCHA",
 0.4
@@ -2628,8 +2628,8 @@
 0.4
 ],
 [
-"AMAGUAÐA",
-"AMAGUAÐA",
+"AMAGUAÑA",
+"AMAGUAÑA",
 "QUITO",
 "PICHINCHA",
 0.4
@@ -2895,7 +2895,7 @@
 ],
 [
 "SAN RAFAEL",
-"AMAGUAÐA",
+"AMAGUAÑA",
 "QUITO",
 "PICHINCHA",
 0.4
@@ -3441,22 +3441,22 @@
 ],
 [
 "BAÑOS DE AGUA SANTA",
-"BAÐOS DE AGUA SANTA",
-"BAÐOS DE AGUA SANTA",
+"BAÑOS DE AGUA SANTA",
+"BAÑOS DE AGUA SANTA",
 "TUNGURAHUA",
 0.4
 ],
 [
 "ULBA",
 "ULBA",
-"BAÐOS DE AGUA SANTA",
+"BAÑOS DE AGUA SANTA",
 "TUNGURAHUA",
 0.4
 ],
 [
 "RIO VERDE",
 "RIO VERDE",
-"BAÐOS DE AGUA SANTA",
+"BAÑOS DE AGUA SANTA",
 "TUNGURAHUA",
 0.4
 ],

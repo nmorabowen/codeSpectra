@@ -113,21 +113,40 @@ This implements NEC §3.1.1's own fallback for a site that is not itself listed:
 > la lista … debe escogerse el valor de la población más cercana."*
 
 ```python
-gaz = Gazetteer({"Quito": (-0.1807, -78.4678), "Cuenca": (-2.9001, -79.0059)})
-# or from any GeoJSON point layer:
-# gaz = Gazetteer.from_file("ciudades.geojson")
-
+gaz   = Gazetteer.geonames()          # bundled coordinates, no download
 match = t.nearest(lat=-0.30, lon=-78.50, gaz, max_distance_km=100)
-match.poblacion.poblacion, match.distance_km, match.Z   # 'QUITO', 14.4, 0.40
+
+match.poblacion.poblacion, match.distance_km, match.Z   # 'CONOCOTO', 2.8, 0.40
 site = nec_site_from_poblacion(match, soil="D")
 ```
 
-> **Coordinates are yours to supply.** NEC publishes names, not positions, so
-> `nearest()` takes a `Gazetteer`. Its coverage bounds the result —
-> `t.covered_by(gaz)` reports how much of the table it can place — and
-> `max_distance_km` refuses a match too far away to be *la población más
-> cercana* in any useful sense. The report reminds you to check Figura 1 for a
-> zone boundary between the site and the matched town.
+NEC publishes names, not positions, so the coordinates come from **GeoNames**,
+matched to Tabla 19 once and shipped as a derived table — 446 of the 506
+resolvable `(población, provincia)` pairs, 88%. Every spot-checked city lands
+within 2 km of its true position.
+
+> Place coordinates derived from the [GeoNames geographical
+> database](https://www.geonames.org/), used under
+> [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Reproduce this
+> attribution wherever you publish results built on them —
+> `GEONAMES_ATTRIBUTION` holds the text.
+
+You can supply your own instead — a plain `{name: (lat, lon)}` dict, or
+`Gazetteer.from_file()` for any GeoJSON point layer.
+
+Three things worth knowing:
+
+- **Entries are province-qualified.** 24 names in Tabla 19 occur in more than
+  one province and 20 of those carry a *different* `Z`, so a gazetteer keyed
+  on name alone would resolve some sites to the wrong design value.
+  `Gazetteer.get(name, provincia)` never leaks across provinces.
+- **One pair is deliberately absent.** `PUEBLO NUEVO` in Guayas exists in two
+  cantones with `Z` of 0.40 and 0.50; a single coordinate could not resolve
+  it safely, so it is omitted rather than guessed.
+- **Coverage is not complete.** `t.covered_by(gaz)` reports what a gazetteer
+  can place, and `max_distance_km` refuses a match too far away to be *la
+  población más cercana* in any useful sense. The report reminds you to check
+  Figura 1 for a zone boundary between the site and the matched town.
 
 You can also just supply `Z` yourself, straight from Figura 1.
 
@@ -266,8 +285,8 @@ python -m pytest
 - Automatic retrieval of `Ss`/`S1` or MPRS ordinates from USGS — supply them.
 - Any bundled hazard data. The Ecuador PSHA reader ships without layers; see
   [Where `Z` comes from](#where-z-comes-from).
-- Coordinates for Tabla 19. NEC publishes names only, so `nearest()` needs a
-  gazetteer you supply.
+- Full coordinate coverage of Tabla 19 — the bundled GeoNames match reaches
+  88% of resolvable pairs.
 - NCh433 Eq. 6-11, the alternative `R*` for wall-type buildings.
 - ASCE 7 Chapter 21 site response analysis itself (the §21.3 floor is
   expressible via `floored_by`, but the study is yours to perform).
