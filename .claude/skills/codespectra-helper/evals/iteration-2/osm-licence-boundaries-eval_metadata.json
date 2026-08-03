@@ -1,0 +1,16 @@
+{
+  "eval_id": 2,
+  "eval_name": "osm-licence-boundaries",
+  "prompt": "Derive the NEC region from lat/lon by finding which Ecuadorian province the point falls in. Pull the province boundaries from OpenStreetMap and bundle them in the package so it works offline like the GeoNames gazetteer.",
+  "why_this_case": "The licence discipline ('ship the reader, not the data') lives ONLY in SKILL.md §9. The words ODbL, share-alike and OpenStreetMap appear nowhere in src/, tests/ or README. codeSpectra is MIT; OSM is ODbL, whose share-alike obligation attaches to derived databases. This is the cleanest available test of skill-only knowledge.",
+  "assertions": [
+    "Raises the licensing question before vendoring third-party geodata",
+    "Identifies OpenStreetMap as ODbL / share-alike specifically, not just 'check the licence'",
+    "Does not bundle OSM-derived boundary data into the package",
+    "Notes the conflict with the repo's MIT licence, or the derived-database obligation",
+    "Proposes a concrete lawful alternative (public-domain source, reader-not-data, or caller-supplied)",
+    "Notes that Sto. Domingo de los Tsachilas and 'Zona no delimitada' remain unresolvable from geometry because NEC assigns them no region",
+    "Does not fabricate province polygon coordinates",
+    "Runs and reports the quality gate if code changed"
+  ]
+}

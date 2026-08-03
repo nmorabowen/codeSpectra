@@ -187,7 +187,7 @@ Three things the API enforces, because this is not code data:
   first in the list, saying `Z` did *not* come from the NEC zone map, plus the
   authors' citation and the licence position.
 
-`region` still has to be given: NEC's `η` follows provincial boundaries
+`region` is required, not defaulted: NEC's `η` follows provincial boundaries
 (Costa / Sierra / Oriente, with Esmeraldas and Galápagos taking the Sierra
 value), which a PGA contour map cannot resolve.
 

@@ -1,0 +1,19 @@
+{
+  "eval_id": 1,
+  "eval_name": "eurocode8-new-shape",
+  "prompt": "Add the EN 1998-1 §3.2.2.2 Type 1 horizontal elastic response spectrum - ground types A-E, with the damping correction factor for non-5% damping. Tests please.",
+  "why_this_case": "A standard the repo has never touched, whose four-branch shape does not fit ASCE's two_period_spectrum. Nothing in the source documents EC8, so the skill's architecture and extraction guidance has to carry it.",
+  "assertions": [
+    "Extracts EN 1998-1 Table 3.2 (Type 1) ground-type values from the PDF rather than from memory",
+    "Validates the extracted values (cross-check, spot check, or explicit verification)",
+    "Implements all four branches of §3.2.2.2 (ascending to TB, plateau TB-TC, 1/T to TD, 1/T^2 beyond)",
+    "Implements the damping correction eta = sqrt(10/(5+xi)) including its 0.55 lower bound",
+    "Does not force-fit the four-branch shape onto ASCE's two_period_spectrum helper",
+    "Returns a core Spectrum object (AnalyticSpectrum) rather than bypassing the spine",
+    "New code lives under codes/, leaving core/ untouched",
+    "Cites EN 1998-1 clauses via ClauseRef",
+    "Tests assert continuity at the control periods TB, TC and TD",
+    "Tests assert the transcribed Table 3.2 values",
+    "Runs and reports the quality gate (pytest, ruff, mypy)"
+  ]
+}

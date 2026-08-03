@@ -329,6 +329,38 @@ Full walkthrough in `references/adding-a-code.md`. The shape:
 
 ## 14. Evaluation status — what this skill is known NOT to do
 
+Two iterations, twelve completed cells (`evals/iteration-1/RESULTS.md`,
+`evals/iteration-2/RESULTS.md`). Eleven scored full marks **with or without
+this skill loaded**, at 16-25% higher token cost when loaded.
+
+**Its engineering content is not a capability uplift.** The extraction
+playbook (§7), the no-invented-values rule (§1) and the refusal discipline
+(§8) were all reproduced unaided across six independent runs on three
+standards — including Eurocode 8, which the repo had never touched. Agents
+independently found the same PDF row-shifts, the same missing radical in
+Eq. (3.6), rendered pages as images, and refused to fabricate deferred
+values. Read §1 and §7 as documentation of a shared standard, not as
+instruction.
+
+**Its measurable contribution is repo conventions**, and it is consistent:
+
+| Behaviour | with skill | baseline |
+|---|---|---|
+| Verified new package data reaches a built wheel (§10) | 2/2 | 0/2 |
+| Avoided misusing an existing abstraction (§3) | 2/2 | 0/2 |
+
+Those are worth the load. Do not expect more.
+
+**The eval's real yield was six library defects**, every one found by an
+agent chasing the problem underneath the request rather than the request
+itself — including two silently-wrong design values (`ASCE7_22` reporting
+`SDS = 0`, `nec_site_from_hazard` defaulting `region="sierra"`). Treat a
+confident request as a prompt to look for the real problem beneath it; that
+habit has paid better here than any rule in this document.
+
+### Earlier framing
+
+
 Iteration 1 (`evals/iteration-1/RESULTS.md`) measured **no difference**
 between having this skill loaded and not: 20/20 assertions passed in both
 configurations, at ~16% higher token cost. The cause is worth knowing:

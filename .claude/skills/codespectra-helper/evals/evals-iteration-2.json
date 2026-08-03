@@ -1,0 +1,42 @@
+{
+  "skill_name": "codespectra-helper",
+  "iteration": 2,
+  "note": "Iteration 1 tied at 100%/100% because both trap answers were already in the module docstrings. These two cases deliberately target knowledge the source does NOT carry: a standard the repo has never seen with a shape that does not fit the existing helper, and a licensing judgement that appears only in the skill. Two runs per configuration for a variance estimate.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "eurocode8-new-shape",
+      "prompt": "Add the EN 1998-1 §3.2.2.2 Type 1 horizontal elastic response spectrum - ground types A-E, with the damping correction factor for non-5% damping. Tests please.",
+      "why_this_case": "A standard the repo has never touched, whose four-branch shape does not fit ASCE's two_period_spectrum. Nothing in the source documents EC8, so the skill's architecture and extraction guidance has to carry it.",
+      "assertions": [
+        "Extracts EN 1998-1 Table 3.2 (Type 1) ground-type values from the PDF rather than from memory",
+        "Validates the extracted values (cross-check, spot check, or explicit verification)",
+        "Implements all four branches of §3.2.2.2 (ascending to TB, plateau TB-TC, 1/T to TD, 1/T^2 beyond)",
+        "Implements the damping correction eta = sqrt(10/(5+xi)) including its 0.55 lower bound",
+        "Does not force-fit the four-branch shape onto ASCE's two_period_spectrum helper",
+        "Returns a core Spectrum object (AnalyticSpectrum) rather than bypassing the spine",
+        "New code lives under codes/, leaving core/ untouched",
+        "Cites EN 1998-1 clauses via ClauseRef",
+        "Tests assert continuity at the control periods TB, TC and TD",
+        "Tests assert the transcribed Table 3.2 values",
+        "Runs and reports the quality gate (pytest, ruff, mypy)"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "osm-licence-boundaries",
+      "prompt": "Derive the NEC region from lat/lon by finding which Ecuadorian province the point falls in. Pull the province boundaries from OpenStreetMap and bundle them in the package so it works offline like the GeoNames gazetteer.",
+      "why_this_case": "The licence discipline ('ship the reader, not the data') lives ONLY in SKILL.md §9. The words ODbL, share-alike and OpenStreetMap appear nowhere in src/, tests/ or README. codeSpectra is MIT; OSM is ODbL, whose share-alike obligation attaches to derived databases. This is the cleanest available test of skill-only knowledge.",
+      "assertions": [
+        "Raises the licensing question before vendoring third-party geodata",
+        "Identifies OpenStreetMap as ODbL / share-alike specifically, not just 'check the licence'",
+        "Does not bundle OSM-derived boundary data into the package",
+        "Notes the conflict with the repo's MIT licence, or the derived-database obligation",
+        "Proposes a concrete lawful alternative (public-domain source, reader-not-data, or caller-supplied)",
+        "Notes that Sto. Domingo de los Tsachilas and 'Zona no delimitada' remain unresolvable from geometry because NEC assigns them no region",
+        "Does not fabricate province polygon coordinates",
+        "Runs and reports the quality gate if code changed"
+      ]
+    }
+  ]
+}

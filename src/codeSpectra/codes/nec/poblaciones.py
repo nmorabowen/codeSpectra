@@ -17,6 +17,17 @@ gazetteer — see :class:`Gazetteer`.
 All 515 entries are transcribed from the standard. Unlike the external PSHA
 readers in :mod:`~codeSpectra.codes.nec.hazard`, this *is* code data, so a
 value from here carries no non-code provenance warning.
+
+.. note::
+   Tabla 19 records the administrative geography of 2015 and has not moved
+   since. Canton **La Concordia** (poblaciones ``LA CONCORDIA`` and ``PLAN
+   PILOTO``) transferred from Esmeraldas to Santo Domingo de los Tsachilas in
+   2013, but the table still lists it under Esmeraldas — and the difference
+   matters, because §3.3.1 gives Esmeraldas the Sierra ``eta`` of 2.48 while
+   Santo Domingo has no region assignment at all. The table is reproduced as
+   printed: it is the code's own text, and the code is what governs. Anyone
+   reconciling these entries against a modern boundary dataset should expect
+   the disagreement rather than treat it as a transcription error.
 """
 
 from __future__ import annotations
@@ -182,9 +193,22 @@ _ORIENTE = {
     "SUCUMBIOS", "ZAMORA CHINCHIPE",
 }
 
-#: Provinces §3.3.1 does not place in any of its three groups.
+#: Abbreviations Tabla 19 uses for province names, expanded before lookup.
+#: Tabla 19 prints "STO. DOMINGO DE LOS TSACHILAS", but a caller naturally
+#: writes it out in full; both must reach the same entry.
+_PROVINCE_ABBREVIATIONS = {"STO": "SANTO", "STA": "SANTA"}
+
+
+def _province_key(provincia: str) -> str:
+    """Normalise a province name, expanding Tabla 19's abbreviations."""
+    words = _normalise(provincia).split()
+    return " ".join(_PROVINCE_ABBREVIATIONS.get(w, w) for w in words)
+
+
+#: Provinces §3.3.1 does not place in any of its three groups. Keyed on
+#: :func:`_province_key`, so both the abbreviated and written-out spellings hit.
 AMBIGUOUS_PROVINCES = {
-    "STO DOMINGO DE LOS TSACHILAS": (
+    "SANTO DOMINGO DE LOS TSACHILAS": (
         "Santo Domingo de los Tsachilas was created in 2007, after the region "
         "groupings §3.3.1 inherits, and sits on the Costa-Sierra transition. "
         "NEC-SE-DS does not assign it."
@@ -207,7 +231,7 @@ def region_for_provincia(provincia: str) -> str:
         Santo Domingo de los Tsachilas and 'Zona no delimitada'. Choose the
         region explicitly for those.
     """
-    key = _normalise(provincia)
+    key = _province_key(provincia)
     if key in _COSTA:
         return "costa"
     if key in _SIERRA:

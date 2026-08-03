@@ -1,0 +1,59 @@
+{
+  "expectations": [
+    {
+      "text": "Extracts Table 3.2 from the PDF, not memory",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Validates the extracted values",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Implements all four branches",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Damping correction incl. the 0.55 floor",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Does not force-fit two_period_spectrum",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Returns a core AnalyticSpectrum",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "New code under codes/, core untouched",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Cites EN 1998-1 via ClauseRef",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Tests continuity at control periods",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Tests the transcribed Table 3.2 values",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Runs and reports the quality gate",
+      "passed": true,
+      "evidence": ""
+    }
+  ]
+}

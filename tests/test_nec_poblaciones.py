@@ -178,10 +178,13 @@ class TestRegionDerivation:
         self, table: Tabla19
     ) -> None:
         """No province may fail silently or unexpectedly."""
-        from codeSpectra.codes.nec.poblaciones import AMBIGUOUS_PROVINCES, _normalise
+        from codeSpectra.codes.nec.poblaciones import (
+            AMBIGUOUS_PROVINCES,
+            _province_key,
+        )
 
         for provincia in table.provincias:
-            if _normalise(provincia) in AMBIGUOUS_PROVINCES:
+            if _province_key(provincia) in AMBIGUOUS_PROVINCES:
                 continue
             assert region_for_provincia(provincia) in ("costa", "sierra", "oriente")
 
@@ -483,3 +486,53 @@ class TestGlyphRepair:
         assert table.find("BAÑOS DE AGUA SANTA")
         assert table.find("AMAGUAÑA")
         assert table.find("SUCÚA")
+
+
+class TestProvinceAbbreviation:
+    """Tabla 19 prints "STO. DOMINGO"; a caller writes it out in full.
+
+    Both must reach the same entry. Before the fix the written-out spelling
+    fell through to "Unknown Ecuadorian province", which reads as a typo
+    rather than as the standard declining to assign a region.
+    """
+
+    @pytest.mark.parametrize(
+        "spelling",
+        [
+            "STO. DOMINGO DE LOS TSACHILAS",      # as Tabla 19 prints it
+            "Santo Domingo de los Tsachilas",
+            "Santo Domingo de los Tsáchilas",     # with the accent
+            "santo domingo de los tsachilas",
+        ],
+    )
+    def test_every_spelling_gives_the_explanatory_error(self, spelling: str) -> None:
+        with pytest.raises(InvalidInput, match="does not assign a region"):
+            region_for_provincia(spelling)
+
+    def test_a_genuinely_unknown_province_still_says_unknown(self) -> None:
+        with pytest.raises(InvalidInput, match="Unknown Ecuadorian province"):
+            region_for_provincia("Santo Domingo de Guzman")
+
+    def test_santa_elena_is_unaffected(self) -> None:
+        """The STA -> SANTA expansion must not disturb a real province."""
+        assert region_for_provincia("SANTA ELENA") == "costa"
+        assert region_for_provincia("STA. ELENA") == "costa"
+
+
+class TestLaConcordiaConflict:
+    """Canton La Concordia moved province in 2013; Tabla 19 predates that.
+
+    Reproduced as printed, because the code is what governs. Pinned so the
+    disagreement is visible rather than looking like a transcription slip.
+    """
+
+    def test_still_listed_under_esmeraldas(self, table: Tabla19) -> None:
+        entries = [p for p in table if p.canton == "LA CONCORDIA"]
+        assert entries, "expected La Concordia entries in Tabla 19"
+        assert {p.provincia for p in entries} == {"ESMERALDAS"}
+
+    def test_the_two_provinces_would_give_different_outcomes(self) -> None:
+        """Why the conflict matters rather than being cosmetic."""
+        assert region_for_provincia("ESMERALDAS") == "sierra"
+        with pytest.raises(InvalidInput, match="does not assign a region"):
+            region_for_provincia("Santo Domingo de los Tsachilas")

@@ -412,8 +412,8 @@ class ContourHazardMap:
 def nec_site_from_hazard(
     estimate: PGAEstimate,
     *,
+    region: str,
     soil: str = "D",
-    region: str = "sierra",
     occupancy: str = "otra",
     allow_unreliable: bool = False,
 ) -> NECSEDS2015:
@@ -422,9 +422,14 @@ def nec_site_from_hazard(
     The resulting site carries a provenance note on every report, recording
     that ``Z`` came from an external hazard model rather than the NEC zone map.
 
-    ``region`` still has to be supplied: NEC's ``eta`` follows provincial
+    ``region`` is required, not defaulted. NEC's ``eta`` follows provincial
     boundaries (Costa / Sierra / Oriente, with Esmeraldas and Galapagos taking
-    the Sierra value), which a PGA contour map cannot tell you.
+    the Sierra value) and a PGA contour map carries no province, so this
+    function cannot infer it. A default would be wrong for most of the
+    country: Costa is 1.80 against Sierra's 2.48, a 38% difference in the
+    plateau, and Oriente is 2.60. If you have a poblacion rather than a bare
+    coordinate, :func:`~codeSpectra.codes.nec.nec_site_from_poblacion` derives
+    the region from the provincia per §3.3.1 instead.
     """
     from .nec_se_ds_2015 import NECSEDS2015
 

@@ -239,11 +239,11 @@ class TestNECIntegration:
         self, hazard_map: ContourHazardMap
     ) -> None:
         with pytest.raises(HazardSourceError, match="not reliable"):
-            nec_site_from_hazard(hazard_map.pga_at(-0.74, -90.31))
+            nec_site_from_hazard(hazard_map.pga_at(-0.74, -90.31), region="sierra")
 
     def test_unreliable_can_be_forced(self, hazard_map: ContourHazardMap) -> None:
         site = nec_site_from_hazard(
-            hazard_map.pga_at(-0.74, -90.31), allow_unreliable=True
+            hazard_map.pga_at(-0.74, -90.31), region="sierra", allow_unreliable=True
         )
         assert site.Z_g > 0.0
 
@@ -260,3 +260,27 @@ class TestNECIntegration:
         site = nec_site_from_hazard(hazard_map.pga_at(0.0, -78.5), region="sierra")
         site.report().to_text().encode("cp1252")
         hazard_map.pga_at(0.0, -78.5).report().to_text().encode("cp1252")
+
+
+class TestRegionIsRequired:
+    """A PGA contour map carries no province, so region cannot be defaulted.
+
+    It used to default to "sierra", which silently gave a Costa site
+    eta = 2.48 instead of 1.80 - a 38% overstatement of the plateau - and an
+    Oriente site 2.48 instead of 2.60, understating it.
+    """
+
+    def test_omitting_region_is_a_type_error(self, hazard_map: ContourHazardMap) -> None:
+        with pytest.raises(TypeError, match="region"):
+            nec_site_from_hazard(hazard_map.pga_at(0.0, -78.5))  # type: ignore[call-arg]
+
+    def test_the_three_regions_give_different_plateaus(
+        self, hazard_map: ContourHazardMap
+    ) -> None:
+        est = hazard_map.pga_at(0.0, -78.5)
+        plateaus = {
+            r: nec_site_from_hazard(est, region=r).Sa_plateau
+            for r in ("costa", "sierra", "oriente")
+        }
+        assert len(set(plateaus.values())) == 3
+        assert plateaus["sierra"] / plateaus["costa"] == pytest.approx(2.48 / 1.80)
