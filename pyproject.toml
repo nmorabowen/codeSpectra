@@ -1,17 +1,88 @@
 [project]
 name = "codeSpectra"
-version = "0.1.0"
-description = "Tools for handling code response spectra"
+version = "0.2.0"
+description = "Codified seismic design response spectra (ASCE 7, NEC-SE-DS, NCh433)"
 authors = [
     { name = "Nicolas Mora Bowen", email = "nmorabowen@gmail.com" }
 ]
 readme = "README.md"
-requires-python = ">=3.8"
-dependencies = []
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+keywords = ["seismic", "response spectrum", "ASCE 7", "NEC-SE-DS", "NCh433", "structural engineering"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "numpy>=1.23",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.6"]
+tabular = ["pandas>=1.5"]
+dev = [
+    "codeSpectra[plot,tabular]",
+    "pytest>=7.0",
+    "pytest-cov",
+    "ruff>=0.4",
+    "mypy>=1.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/nmorabowen/codeSpectra"
+Issues = "https://github.com/nmorabowen/codeSpectra/issues"
 
 [build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["."]
+where = ["src"]
+
+[tool.setuptools.package-data]
+codeSpectra = ["**/tables/*.json"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "N"]
+# This library mirrors the notation of the standards it implements. Symbols
+# like Ss, S1, SDS, Fa, Fv, Z, I, R and TL are the code books' own names;
+# renaming them to satisfy PEP 8 would make the source harder to check against
+# the printed clause, so the pep8-naming rules that collide with them are off.
+ignore = [
+    "N801",  # class names: ASCE7_16, NECSEDS2015
+    "N802",  # function names: alpha(), test_..._V
+    "N803",  # argument names: Ss, S1, SDS, TL, W, R
+    "N806",  # local variable names: Fa, Fv, SMS, Cs
+    "N812",  # import alias: _tables_7_16 as T716
+    "N815",  # class-scope mixedCase
+    "N818",  # SiteSpecificRequired reads better than ...Error
+    "N999",  # module names: asce7_16, nec_se_ds_2015
+    "E741",  # `I` is the importance factor in NEC, NCh433 and ASCE
+    "RUF001", "RUF002", "RUF003",  # Spanish text and typographic dashes
+    "SIM300",  # `actual == pytest.approx(expected)` is the idiomatic order
+]
+
+[tool.mypy]
+# 3.12 rather than the 3.10 floor of requires-python: current numpy stubs use
+# PEP 695 `type` statements that mypy only parses under 3.12. Runtime support
+# still starts at 3.10 — nothing in the source uses post-3.10 syntax.
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["matplotlib.*", "pandas.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
