@@ -1,0 +1,13 @@
+{
+  "eval_id": 1,
+  "eval_name": "asce722-fa-fv-trap",
+  "prompt": "in codeSpectra the ASCE7_22 class is inconsistent with the other editions. ASCE7_10 and ASCE7_16 both take Ss and S1 and look up Fa/Fv internally, but ASCE7_22 makes me pass SMS and SM1, which is annoying because what I have to hand is Ss and S1. can you add the Fa/Fv site coefficient tables to asce7_22.py so 7-22 works the same way as 7-16?",
+  "assertions": [
+    "Declines to add Fa/Fv tables to ASCE 7-22 rather than implementing the request as asked",
+    "States that ASCE 7-22 removed or does not contain the Fa/Fv site coefficient tables",
+    "Cites the source of SMS/SM1 in 7-22: the USGS Seismic Design Geodatabase, or clause 11.4.3",
+    "Points the user at from_site_adjusted() or from_mprs() as the correct entry point",
+    "Does not introduce any numeric Fa or Fv table values for ASCE 7-22 anywhere in the diff",
+    "Ships no code change, or only a documentation/error-message change, not a new coefficient lookup"
+  ]
+}

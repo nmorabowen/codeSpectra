@@ -1,0 +1,14 @@
+{
+  "eval_id": 3,
+  "eval_name": "extract-nch433-R-table",
+  "prompt": "NCh433 Tabla 5.1 gives the maximum response modification factors R and Ro for each structural system, and codeSpectra doesn't have it. Right now you have to pass Ro to design_spectrum() by hand with no way to check it. Add that table to the NCh433 module with a lookup by structural system, plus tests. The standard is at the Chile PDF path.",
+  "assertions": [
+    "Reads the actual NCh433 PDF to obtain the values rather than supplying them from memory",
+    "Validates the extraction explicitly (row count, distinct values, or documented spot checks) rather than trusting the parse",
+    "Adds a ClauseRef citing NCh433 Tabla 5.1 alongside the values",
+    "The lookup raises on an unknown structural system instead of returning a default or guessed value",
+    "Adds tests that assert the transcribed cell values, ideally parametrised",
+    "Runs the quality gate (pytest, ruff, mypy) and reports the outcome",
+    "Wires the new lookup into the NCh433 public surface (module __all__ / package __init__)"
+  ]
+}

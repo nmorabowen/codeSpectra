@@ -1,0 +1,44 @@
+{
+  "expectations": [
+    {
+      "text": "Reads the actual PDF rather than working from memory",
+      "passed": true,
+      "evidence": "extraction tooling named"
+    },
+    {
+      "text": "Validates the extraction explicitly",
+      "passed": true,
+      "evidence": "cross-check between render modes documented"
+    },
+    {
+      "text": "Adds a ClauseRef citing Tabla 5.1",
+      "passed": true,
+      "evidence": "ClauseRef with Tabla 5.1 in diff"
+    },
+    {
+      "text": "Lookup raises on an unknown structural system",
+      "passed": true,
+      "evidence": "raise present in diff"
+    },
+    {
+      "text": "Does not fabricate the missing Ro (stores None)",
+      "passed": true,
+      "evidence": "unclassifiable row handled as absent"
+    },
+    {
+      "text": "Adds tests asserting the transcribed cells",
+      "passed": true,
+      "evidence": "tests in diff"
+    },
+    {
+      "text": "Runs and reports the quality gate",
+      "passed": true,
+      "evidence": "pytest/ruff/mypy all reported"
+    },
+    {
+      "text": "Wires the lookup into the public surface",
+      "passed": true,
+      "evidence": "package export updated"
+    }
+  ]
+}

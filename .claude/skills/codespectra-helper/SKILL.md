@@ -327,7 +327,47 @@ Full walkthrough in `references/adding-a-code.md`. The shape:
 
 ---
 
-## 14. Cross-references
+## 14. Evaluation status — what this skill is known NOT to do
+
+Iteration 1 (`evals/iteration-1/RESULTS.md`) measured **no difference**
+between having this skill loaded and not: 20/20 assertions passed in both
+configurations, at ~16% higher token cost. The cause is worth knowing:
+
+- For the two trap cases, the answers are already in the module docstrings of
+  `asce7_22.py` and `nec_se_ds_2015.py`. **Where the source documents a
+  provision, this skill is redundant** — read the source first.
+- For the extraction case, both configurations independently cross-checked
+  render modes and refused to fabricate a missing value. The extraction
+  discipline in §7 is worth stating, but do not assume it is load-bearing.
+
+The one thing only the skilled run did was verify a claim against the primary
+source rather than asserting it from a docstring. If that is all you need,
+§7's recipe is the part to read.
+
+The eval also surfaced two real library defects (a silently-zero `SDS` on
+`ASCE7_22`, since fixed, and dead dataclass fields) — both found by the
+*unskilled* run. Treat a confident request as a prompt to look for the real
+problem underneath it.
+
+---
+
+## 15. Environment gotchas
+
+- **`isolation: worktree` seeds from repo HEAD, not the working branch.** An
+  agent given a worktree may land on `main`, which predates the library
+  rewrite. Check `git log --oneline -1` before trusting the tree.
+- **The editable install resolves `codeSpectra` to one specific worktree.** A
+  bare `pytest` from a sibling worktree silently tests the wrong checkout —
+  it has already produced a passing run against code the agent had not
+  written. Run with `PYTHONPATH=<your worktree>/src`.
+- **Doctests do not run in the default suite.** `pytest --doctest-modules`
+  catches docstring examples that drifted.
+- **Whole-repo `mypy` reports pre-existing errors in `tests/`.** The gate in
+  §10 checks `src/codeSpectra` only; that is deliberate.
+
+---
+
+## 16. Cross-references
 
 - **Ground-motion theory, site classes, MPRS vs two-period** —
   `asce7-ground-motion`.

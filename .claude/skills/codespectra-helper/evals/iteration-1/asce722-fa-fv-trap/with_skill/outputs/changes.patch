@@ -1,0 +1,103 @@
+diff --git a/src/codeSpectra/codes/asce7/asce7_22.py b/src/codeSpectra/codes/asce7/asce7_22.py
+index 913c78c..c3b0460 100644
+--- a/src/codeSpectra/codes/asce7/asce7_22.py
++++ b/src/codeSpectra/codes/asce7/asce7_22.py
+@@ -7,6 +7,30 @@ the applicable site class** — the ``Fa``/``Fv`` site-coefficient tables of
+ plus a site class to ``SMS``/``SM1`` inside this library, and this module does
+ not pretend otherwise: you supply site-adjusted values.
+
++Commentary C11.4.3 is explicit about why: ``SMS`` and ``SM1`` (and ``SDS``,
++``SD1``) now incorporate site effects themselves, "eliminating the need for
++the tables of site factors Fa and Fv of ASCE 7-16". The strings ``Table
++11.4-1`` and ``Table 11.4-2`` do not occur anywhere in 7-22. Do not add them
++here — a 7-16 ``Fa``/``Fv`` applied to 7-22 mapped values is neither edition.
++
++**If all you have is a location.** Ask the ASCE 7 Hazard Tool
++(https://asce7hazardtool.online/, or the USGS Seismic Design Web Service) for
++the site class you are designing to; it returns ``SMS``/``SM1`` and the
++multi-period ordinates for the same latitude/longitude that would have given
++you ``Ss``/``S1``. The Chapter 22 printed maps likewise plot ``SMS`` and
++``SM1`` for the default site conditions of §11.4.2.1, not ``Ss``/``S1`` to be
++multiplied by a coefficient.
++
++**If your ``Ss``/``S1`` came from a 7-16 or IBC job**, they are 7-16 mapped
++values on a different reference site condition, and the correct object for
++them is :class:`~codeSpectra.codes.asce7.ASCE7_16`, which owns the 7-16
++``Fa``/``Fv`` tables. Building a 7-22 spectrum out of them is a mixed-edition
++result that no clause authorises.
++
++``Ss``/``S1`` remain accepted here as optional metadata: they are recorded in
++the report and enable the §11.6 ``S1 >= 0.75`` seismic-design-category
++override. They are never multiplied by anything.
++
+ Two construction paths mirror the two the standard defines:
+
+ :meth:`ASCE7_22.from_mprs`
+@@ -188,6 +212,8 @@ class ASCE7_22:
+         Permitted by §11.4.5 Exception 2 only where multi-period values are
+         unavailable from the geodatabase. ``SMS`` and ``SM1`` come from
+         §11.4.3 — they are *not* ``Fa*Ss`` and ``Fv*S1``, which 7-22 removed.
++        Read them off the ASCE 7 Hazard Tool for your site class, or off the
++        Chapter 22 maps if the default site conditions of §11.4.2.1 apply.
+         """
+         if SMS <= 0.0:
+             raise InvalidInput("SMS must be positive.")
+@@ -332,6 +358,21 @@ class ASCE7_22:
+                        ref(EDITION, "11.4.5", "Design response spectrum")),
+             ReportItem("Ie", self.Ie, "Seismic importance factor", "",
+                        ref(EDITION, "11.5.1", table="1.5-2")),
++        ]
++        # Ss/S1 are recorded where supplied but scale nothing: 7-22 has no
++        # Fa/Fv to multiply them by. They exist here for traceability and for
++        # the §11.6 S1 >= 0.75 override.
++        if self.Ss is not None:
++            items.append(
++                ReportItem("Ss", self.Ss, "Mapped MCEr, short period "
++                           "(reference only; not scaled)", "g", geodb)
++            )
++        if self.S1 is not None:
++            items.append(
++                ReportItem("S1", self.S1, "Mapped MCEr, 1 s "
++                           "(reference only; not scaled)", "g", geodb)
++            )
++        items += [
+             ReportItem("SMS", self.SMS, "Site-adjusted MCEr, short period", "g", geodb),
+             ReportItem("SM1", self.SM1, "Site-adjusted MCEr, 1 s", "g", geodb),
+             ReportItem("SDS", self.SDS, "(2/3) SMS", "g",
+diff --git a/tests/test_asce7.py b/tests/test_asce7.py
+index 9c49e48..eb1d1d2 100644
+--- a/tests/test_asce7.py
++++ b/tests/test_asce7.py
+@@ -288,6 +288,32 @@ class TestASCE722:
+
+         assert site.basis is SpectrumBasis.TWO_PERIOD
+
++    def test_no_site_coefficients_in_7_22(self) -> None:
++        """7-22 deleted Fa/Fv; SMS/SM1 come from the geodatabase (§11.4.3).
++
++        Commentary C11.4.3: SMS and SM1 incorporate site effects themselves,
++        "eliminating the need for the tables of site factors Fa and Fv of
++        ASCE 7-16". Neither `Table 11.4-1` nor `Table 11.4-2` exists in 7-22.
++        Re-adding either here would produce a mixed-edition number that no
++        clause authorises, so this pins their absence.
++        """
++        site = ASCE7_22.from_site_adjusted(SMS=1.5, SM1=1.02, site_class="CD")
++        for removed in ("Fa", "Fv", "Fa_override", "Fv_override"):
++            assert not hasattr(site, removed), (
++                f"ASCE 7-22 has no {removed}: §11.4.3 reads SMS/SM1 directly "
++                "from the USGS Seismic Design Geodatabase."
++            )
++
++    def test_Ss_S1_are_metadata_only(self) -> None:
++        """Ss/S1 are recorded and drive §11.6, but scale nothing (§11.4.3)."""
++        without = ASCE7_22.from_site_adjusted(SMS=1.5, SM1=1.02, site_class="CD")
++        with_mapped = ASCE7_22.from_site_adjusted(
++            SMS=1.5, SM1=1.02, site_class="CD", Ss=1.5, S1=0.6
++        )
++        assert with_mapped.SDS == pytest.approx(without.SDS)
++        assert with_mapped.SD1 == pytest.approx(without.SD1)
++        assert with_mapped.report()["Ss"] == pytest.approx(1.5)
++
+     def test_expanded_site_classes_accepted(self) -> None:
+         for sc in ("BC", "CD", "DE"):
+             site = ASCE7_22.from_site_adjusted(SMS=1.0, SM1=0.5, site_class=sc)
