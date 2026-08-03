@@ -155,6 +155,7 @@ class NECSEDS2015:
     Fa_override: float | None = None
     Fd_override: float | None = None
     Fs_override: float | None = None
+    provenance_note: str | None = None
 
     def __post_init__(self) -> None:
         if self.zone is None and self.Z is None:
@@ -431,6 +432,9 @@ class NECSEDS2015:
                        _ref("3.3.1", "Ordenada del plateau")),
         ]
         notes: list[str] = []
+        # Non-code provenance leads: a reader must see it before the numbers.
+        if self.provenance_note:
+            notes.append(self.provenance_note)
         if self._interpolated_Z:
             notes.append(
                 f"Z = {self.Z_g:g} g falls between the tabulated columns of Tablas "

@@ -78,6 +78,56 @@ result.V, result.Ta, result.k
 > `elastic_spectrum(include_ascending_branch=True)` only when evaluating
 > higher modes.
 
+### Where `Z` comes from
+
+The standard route is to supply `Z` yourself, from NEC-SE-DS Figura 1 or the
+poblaciones list in Tabla 19 — that is what governs design in Ecuador.
+
+Optionally, `Z` can be read off a published PSHA. codeSpectra ships **no
+third-party hazard data**; it ships the reader, and you point it at layers you
+hold or let it fetch them from the publisher on an explicit call:
+
+```python
+from codeSpectra.codes.nec import ContourHazardMap, nec_site_from_hazard
+
+hazard = ContourHazardMap.from_palacios_2023(path="CurvasNivelhmapmeanPGA475TR_2.js")
+# or, an explicit network call — never implicit:
+# hazard = ContourHazardMap.from_palacios_2023(download=True)
+
+est = hazard.pga_at(lat=-0.1807, lon=-78.4678)   # Quito
+est.pga, est.band, est.distance_km               # 0.480, (0.4, 0.5), 6.5 km
+
+site = nec_site_from_hazard(est, soil="D", region="sierra")
+```
+
+The [Palacios, Celi & Poveda (2023)](https://github.com/ppalacios92/SeismicHazard2023_poe0.1_50y)
+map is mean PGA at 10% PoE in 50 years — the same 475-year hazard level as
+NEC's design earthquake, which is why it maps onto `Z` at all.
+
+Three things the API enforces, because this is not code data:
+
+- **It is a band, not a number.** The published layers are iso-lines at 0.1 g
+  steps; `est.pga` interpolates between them but is never more precise than
+  that interval. `est.band` and `est.distance_km` are the honest outputs.
+- **Distant points are refused.** A query far outside the contours still
+  yields a plausible-looking figure from nearest-line interpolation — the
+  Galápagos return 0.449 g from geometry 1,070 km away. Those are flagged
+  `reliable=False`, and `nec_site_from_hazard` raises rather than building a
+  design site from one (`allow_unreliable=True` to override).
+- **Provenance leads every report.** Any site built this way carries a note,
+  first in the list, saying `Z` did *not* come from the NEC zone map, plus the
+  authors' citation and the licence position.
+
+`region` still has to be given: NEC's `η` follows provincial boundaries
+(Costa / Sierra / Oriente, with Esmeraldas and Galápagos taking the Sierra
+value), which a PGA contour map cannot resolve.
+
+> **Licence.** That repository publishes no `LICENSE` file, so it is
+> all-rights-reserved by default and citation alone does not grant
+> redistribution. That is exactly why nothing is vendored here. If the authors
+> add a licence (CC-BY-4.0 would make attribution sufficient), bundling the
+> layers for offline use becomes a one-line change.
+
 ## ASCE 7-22 takes different inputs
 
 7-22 §11.4.3 reads `Ss`, `S1`, `SMS` and `SM1` **directly from the USGS
@@ -164,6 +214,9 @@ python -m pytest
 ## Not implemented
 
 - Automatic retrieval of `Ss`/`S1` or MPRS ordinates from USGS — supply them.
+- Any bundled hazard data. The Ecuador PSHA reader ships without layers; see
+  [Where `Z` comes from](#where-z-comes-from).
+- NEC Tabla 19 (poblaciones → `Z`) as a built-in lookup — still worth adding.
 - NCh433 Eq. 6-11, the alternative `R*` for wall-type buildings.
 - ASCE 7 Chapter 21 site response analysis itself (the §21.3 floor is
   expressible via `floored_by`, but the study is yours to perform).
