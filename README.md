@@ -262,6 +262,17 @@ that is the internal unit. Conversion happens only at the export boundary.
 **Citations travel with values.** `ClauseRef` on every coefficient, control
 period and spectrum; `report()` renders to text or Markdown for a calc package.
 
+## Working on this repo
+
+`.claude/skills/codespectra-helper/` carries the operational knowledge an
+agent (or a returning human) needs: the architecture contracts, the
+per-edition input differences, the quality gate, and — importantly — the
+PDF-extraction playbook with the specific traps that have silently corrupted
+tables here before. `scripts/extract_code_table.py` implements the validated
+extractor; it reproduces the shipped Tabla 19 exactly.
+
+Read it before transcribing a code table or adding a standard.
+
 ## Verification
 
 Table values are transcribed from the standards themselves, not from memory:
