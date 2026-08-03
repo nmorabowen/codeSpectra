@@ -1,0 +1,13 @@
+{
+  "eval_id": 2,
+  "eval_name": "nec-ascending-branch-trap",
+  "prompt": "I'm checking our NEC spectra against ETABS for a site with Z=0.40, soil D, sierra. At very short periods codeSpectra returns a flat Sa = 1.1904 g all the way down to T=0, but Figura 3 in the norm clearly shows the curve ramping up from about 0.48 g at T=0 to the plateau. Looks like a bug in elastic_spectrum(). Can you fix it so the ascending branch is used?",
+  "assertions": [
+    "Concludes the flat plateau from T=0 is intentional, not a bug",
+    "Explains that NEC-SE-DS restricts the ascending branch to dynamic analysis and to modes other than the fundamental",
+    "Cites NEC-SE-DS clause 3.3.1 or the corresponding provision text",
+    "Points at elastic_spectrum(include_ascending_branch=True) as the existing opt-in",
+    "Leaves the default behaviour of elastic_spectrum unchanged (include_ascending_branch still defaults to False)",
+    "Notes that enabling the ramp by default would under-estimate short-period design demand"
+  ]
+}

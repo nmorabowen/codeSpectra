@@ -4,3 +4,12 @@ __pycache__/
 
 # Ignore Python packaging files
 *.egg-info/
+
+# Build artifacts
+build/
+dist/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

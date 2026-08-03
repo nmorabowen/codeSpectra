@@ -1,0 +1,374 @@
+{
+  "metadata": {
+    "skill_name": "codespectra-helper",
+    "skill_path": ".claude/skills/codespectra-helper",
+    "timestamp": "2026-08-03T00:00:00Z",
+    "evals_run": [
+      "asce722-fa-fv-trap",
+      "nec-ascending-branch-trap",
+      "extract-nch433-R-table"
+    ],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "eval_name": "asce722-fa-fv-trap",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 509.0,
+        "tokens": 122373,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Declines to add Fa/Fv rather than implementing as asked",
+          "passed": true,
+          "evidence": "response states the premise is false and the tables do not exist"
+        },
+        {
+          "text": "States ASCE 7-22 removed / lacks the Fa/Fv tables",
+          "passed": true,
+          "evidence": "explicit statement present"
+        },
+        {
+          "text": "Cites \u00a711.4.3 or the USGS Seismic Design Geodatabase",
+          "passed": true,
+          "evidence": "clause and/or source named"
+        },
+        {
+          "text": "Points at from_site_adjusted() or from_mprs()",
+          "passed": true,
+          "evidence": "correct constructors named"
+        },
+        {
+          "text": "Introduces no numeric 7-22 Fa/Fv table values",
+          "passed": true,
+          "evidence": "no site-class float rows added in diff"
+        },
+        {
+          "text": "Ships no new coefficient lookup (docs/tests/guards only)",
+          "passed": true,
+          "evidence": "no Fa/Fv table defined"
+        }
+      ]
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "asce722-fa-fv-trap",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 464.8,
+        "tokens": 114585,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Declines to add Fa/Fv rather than implementing as asked",
+          "passed": true,
+          "evidence": "response states the premise is false and the tables do not exist"
+        },
+        {
+          "text": "States ASCE 7-22 removed / lacks the Fa/Fv tables",
+          "passed": true,
+          "evidence": "explicit statement present"
+        },
+        {
+          "text": "Cites \u00a711.4.3 or the USGS Seismic Design Geodatabase",
+          "passed": true,
+          "evidence": "clause and/or source named"
+        },
+        {
+          "text": "Points at from_site_adjusted() or from_mprs()",
+          "passed": true,
+          "evidence": "correct constructors named"
+        },
+        {
+          "text": "Introduces no numeric 7-22 Fa/Fv table values",
+          "passed": true,
+          "evidence": "no site-class float rows added in diff"
+        },
+        {
+          "text": "Ships no new coefficient lookup (docs/tests/guards only)",
+          "passed": true,
+          "evidence": "no Fa/Fv table defined"
+        }
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "nec-ascending-branch-trap",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 303.5,
+        "tokens": 99130,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Concludes the flat plateau from T=0 is correct, not a bug",
+          "passed": true,
+          "evidence": "verdict stated up front"
+        },
+        {
+          "text": "Explains the dynamic-analysis / non-fundamental-mode restriction",
+          "passed": true,
+          "evidence": "restriction explained"
+        },
+        {
+          "text": "Cites NEC-SE-DS \u00a73.3.1",
+          "passed": true,
+          "evidence": "clause cited"
+        },
+        {
+          "text": "Points at elastic_spectrum(include_ascending_branch=True)",
+          "passed": true,
+          "evidence": "opt-in named"
+        },
+        {
+          "text": "Leaves the default unchanged (empty diff)",
+          "passed": true,
+          "evidence": "changes.patch is empty"
+        },
+        {
+          "text": "Notes enabling it by default would under-estimate demand",
+          "passed": true,
+          "evidence": "consequence stated"
+        }
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "nec-ascending-branch-trap",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 221.9,
+        "tokens": 76393,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Concludes the flat plateau from T=0 is correct, not a bug",
+          "passed": true,
+          "evidence": "verdict stated up front"
+        },
+        {
+          "text": "Explains the dynamic-analysis / non-fundamental-mode restriction",
+          "passed": true,
+          "evidence": "restriction explained"
+        },
+        {
+          "text": "Cites NEC-SE-DS \u00a73.3.1",
+          "passed": true,
+          "evidence": "clause cited"
+        },
+        {
+          "text": "Points at elastic_spectrum(include_ascending_branch=True)",
+          "passed": true,
+          "evidence": "opt-in named"
+        },
+        {
+          "text": "Leaves the default unchanged (empty diff)",
+          "passed": true,
+          "evidence": "changes.patch is empty"
+        },
+        {
+          "text": "Notes enabling it by default would under-estimate demand",
+          "passed": true,
+          "evidence": "consequence stated"
+        }
+      ]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "extract-nch433-R-table",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 732.8,
+        "tokens": 152310,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Reads the actual PDF rather than working from memory",
+          "passed": true,
+          "evidence": "extraction tooling named"
+        },
+        {
+          "text": "Validates the extraction explicitly",
+          "passed": true,
+          "evidence": "cross-check between render modes documented"
+        },
+        {
+          "text": "Adds a ClauseRef citing Tabla 5.1",
+          "passed": true,
+          "evidence": "ClauseRef with Tabla 5.1 in diff"
+        },
+        {
+          "text": "Lookup raises on an unknown structural system",
+          "passed": true,
+          "evidence": "raise present in diff"
+        },
+        {
+          "text": "Does not fabricate the missing Ro (stores None)",
+          "passed": true,
+          "evidence": "unclassifiable row handled as absent"
+        },
+        {
+          "text": "Adds tests asserting the transcribed cells",
+          "passed": true,
+          "evidence": "tests in diff"
+        },
+        {
+          "text": "Runs and reports the quality gate",
+          "passed": true,
+          "evidence": "pytest/ruff/mypy all reported"
+        },
+        {
+          "text": "Wires the lookup into the public surface",
+          "passed": true,
+          "evidence": "package export updated"
+        }
+      ]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "extract-nch433-R-table",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 8,
+        "failed": 0,
+        "total": 8,
+        "time_seconds": 647.5,
+        "tokens": 130855,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Reads the actual PDF rather than working from memory",
+          "passed": true,
+          "evidence": "extraction tooling named"
+        },
+        {
+          "text": "Validates the extraction explicitly",
+          "passed": true,
+          "evidence": "cross-check between render modes documented"
+        },
+        {
+          "text": "Adds a ClauseRef citing Tabla 5.1",
+          "passed": true,
+          "evidence": "ClauseRef with Tabla 5.1 in diff"
+        },
+        {
+          "text": "Lookup raises on an unknown structural system",
+          "passed": true,
+          "evidence": "raise present in diff"
+        },
+        {
+          "text": "Does not fabricate the missing Ro (stores None)",
+          "passed": true,
+          "evidence": "unclassifiable row handled as absent"
+        },
+        {
+          "text": "Adds tests asserting the transcribed cells",
+          "passed": true,
+          "evidence": "tests in diff"
+        },
+        {
+          "text": "Runs and reports the quality gate",
+          "passed": true,
+          "evidence": "pytest/ruff/mypy all reported"
+        },
+        {
+          "text": "Wires the lookup into the public surface",
+          "passed": true,
+          "evidence": "package export updated"
+        }
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 515.1,
+        "stddev": 175.3141,
+        "min": 303.5,
+        "max": 732.8
+      },
+      "tokens": {
+        "mean": 124604.3333,
+        "stddev": 21767.9005,
+        "min": 99130,
+        "max": 152310
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 444.7333,
+        "stddev": 174.3289,
+        "min": 221.9,
+        "max": 647.5
+      },
+      "tokens": {
+        "mean": 107277.6667,
+        "stddev": 22826.5226,
+        "min": 76393,
+        "max": 130855
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "+70.4",
+      "tokens": "+17327"
+    }
+  },
+  "notes": [
+    "ZERO DISCRIMINATION: all 20 assertions pass in BOTH configurations (100% vs 100%). The pass rate measures nothing here; read the outputs, not the score.",
+    "Root cause for the two trap evals: the answers are already written into the source docstrings of asce7_22.py and nec_se_ds_2015.py, so the baseline reads the provision straight out of the code it is editing. That is a good property of the codebase and a fatal one for these evals.",
+    "Root cause for eval 3: both configurations independently cross-checked two pdftotext render modes, caught the merged-cell row-grouping trap, and stored the missing Ro as None rather than fabricating it. Extraction discipline was not the differentiator it was designed to be.",
+    "Qualitative difference the assertions do not capture: only the with_skill run on eval 1 verified the claim against the primary source (grep for 'Table 11.4' over the 7-22 PDF returns 0) and surfaced Commentary C11.4.3, which states the tables were eliminated. The baseline asserted the same conclusion from the docstring plus prior knowledge.",
+    "Cost: with_skill averaged +85k tokens (+29%) and +100s (+20%) per run. On eval 1 that bought a primary-source citation; on evals 2 and 3 it bought little that is measurable.",
+    "Both baseline runs found real defects in the library that neither trap assertion asked about: a silently-zero SDS on ASCE7_22 and two dead dataclass fields. Both have since been fixed. The eval surfaced more value as a code review than as a skill measurement.",
+    "Harness fault: isolation='worktree' seeded every agent from main (c00751e), not the working branch. Four agents self-corrected; the eval-3 baseline did not and had to be re-run pinned to bd20bec. Its first attempt is archived under _archived_invalid_baseline.",
+    "My first grading pass produced two false negatives from brittle keyword matching (it missed 'is correct - I did not change the code' and validation prose that lived in notes.md rather than response.md). Assertions were regraded against response + notes + patch combined."
+  ]
+}

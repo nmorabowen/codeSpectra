@@ -1,0 +1,741 @@
+diff --git a/README.md b/README.md
+index 9d8392e..2d1b5c0 100644
+--- a/README.md
++++ b/README.md
+@@ -11,7 +11,7 @@ Every derived quantity carries the clause that authorises it.
+ | --- | --- | --- |
+ | ASCE/SEI 7 | 7-10, 7-16, 7-22 | Design + MCEr spectra, vertical spectrum (7-16), SDC, ELF §12.8 |
+ | NEC-SE-DS (Ecuador) | 2015 | Elastic, inelastic and displacement spectra, DBF base shear §6.3, Tabla 19 poblaciones |
+-| NCh433 (Chile) | Of1996 Mod.2009 / DS 61-2011 | Elastic spectrum, `R*` reduction, `C` limits |
++| NCh433 (Chile) | Of1996 Mod.2009 / DS 61-2011 | Elastic spectrum, Tabla 5.1 `R`/`Ro` lookup, `R*` reduction, `C` limits |
+ 
+ ## Install
+ 
+@@ -281,7 +281,7 @@ Table values are transcribed from the standards themselves, not from memory:
+ - ASCE/SEI 7-10 Tables 11.4-1, 11.4-2
+ - ASCE/SEI 7-22 §11.4.2 site classes, §11.4.5.1 period list
+ - NEC-SE-DS 2015 Tablas 1, 3, 4, 5, 6, 19, and §6.3.3 / §6.3.5
+-- NCh433 Tablas 4.2, 6.1, 6.2, 6.3, 6.4
++- NCh433 Tablas 4.2, 5.1, 6.1, 6.2, 6.3, 6.4
+ 
+ The suite asserts every transcribed cell, checks the spectrum is continuous at
+ every control period across all zone x soil x region combinations, and covers
+diff --git a/src/codeSpectra/codes/nch433/__init__.py b/src/codeSpectra/codes/nch433/__init__.py
+index 5f74e38..bbcd09b 100644
+--- a/src/codeSpectra/codes/nch433/__init__.py
++++ b/src/codeSpectra/codes/nch433/__init__.py
+@@ -1,5 +1,22 @@
+ """NCh433 — Diseño sísmico de edificios (Chile)."""
+ 
++from ._tables import (
++    STRUCTURAL_SYSTEMS,
++    TABLA_5_1_FOOTNOTES,
++    StructuralSystem,
++    structural_system,
++    structural_system_keys,
++)
+ from .nch433 import BuildingCategory, NCh433, SeismicZone, SoilType
+ 
+-__all__ = ["BuildingCategory", "NCh433", "SeismicZone", "SoilType"]
++__all__ = [
++    "STRUCTURAL_SYSTEMS",
++    "TABLA_5_1_FOOTNOTES",
++    "BuildingCategory",
++    "NCh433",
++    "SeismicZone",
++    "SoilType",
++    "StructuralSystem",
++    "structural_system",
++    "structural_system_keys",
++]
+diff --git a/src/codeSpectra/codes/nch433/_tables.py b/src/codeSpectra/codes/nch433/_tables.py
+new file mode 100644
+index 0000000..85b9751
+--- /dev/null
++++ b/src/codeSpectra/codes/nch433/_tables.py
+@@ -0,0 +1,283 @@
++"""NCh433 Tabla 5.1 — maximum response modification factors R and Ro.
++
++Transcribed from NCh433.Of1996 Mod.2009 (DS 61-2011), page 27, cross-checked
++between an ``-table`` and a ``-layout`` extraction of the source PDF.
++
++Two factors are printed side by side and they are *not* interchangeable:
++
++``R``
++    Used by the static method, Eq. 6-2, ``C = 2.75 S Ao / (g R) * (T'/T*)**n``.
++``Ro``
++    Used by the modal spectral method, feeding Eq. 6-10,
++    ``R*(T*) = 1 + T* / (0.10 To + T*/Ro)``.
++
++The values are **maxima** (§5.7.1, and the table's own caption). An engineer
++may adopt a smaller factor; adopting a larger one is not permitted, which is
++what :func:`check_R` and :func:`check_Ro` enforce.
++
++The final row — anything that cannot be classified — has ``R = 2`` and *no*
++``Ro``: footnote 3 forbids modal spectral analysis for it altogether. That
++cell is stored as ``None`` and raises rather than returning a plausible
++number.
++"""
++
++from __future__ import annotations
++
++from dataclasses import dataclass
++from typing import TYPE_CHECKING
++
++from ...core.exceptions import InvalidInput, TableLookupError
++from ...core.references import ClauseRef
++from ...core.reports import Report, ReportItem
++
++if TYPE_CHECKING:
++    from collections.abc import Callable
++
++__all__ = [
++    "EDITION",
++    "STANDARD",
++    "STRUCTURAL_SYSTEMS",
++    "TABLA_5_1_FOOTNOTES",
++    "StructuralSystem",
++    "check_R",
++    "check_Ro",
++    "clause_ref",
++    "structural_system",
++    "structural_system_keys",
++]
++
++STANDARD = "NCh433"
++EDITION = "Of1996 Mod.2009 (DS 61-2011)"
++
++
++def clause_ref(section: str, description: str, **kw: str) -> ClauseRef:
++    """A :class:`ClauseRef` into NCh433 for ``section``."""
++    return ClauseRef(standard=STANDARD, edition=EDITION, clause=section,
++                     description=description, **kw)
++
++
++#: Footnotes printed beneath Tabla 5.1, transcribed without accents so the
++#: rendered report survives a cp1252 console.
++TABLA_5_1_FOOTNOTES: dict[str, str] = {
++    "1": "Los valores indicados en esta tabla para acero estructural y hormigon "
++         "armado suponen el cumplimiento de lo establecido en 5.3.3 (Anexo B) y "
++         "5.3.4 respectivamente.",
++    "2": "Criterio A: los muros de hormigon armado deben tomar en cada piso, el "
++         "50% del esfuerzo de corte del piso, como minimo.",
++    "3": "No procede el uso del analisis modal espectral para este tipo de "
++         "estructuracion o material. Por lo tanto, no se establece un valor "
++         "para Ro.",
++}
++
++_TABLE_REF = clause_ref("5.7.1", "Valores maximos de los factores de "
++                                 "modificacion de la respuesta", table="5.1")
++
++
++@dataclass(frozen=True, slots=True)
++class StructuralSystem:
++    """One row of Tabla 5.1.
++
++    Parameters
++    ----------
++    key
++        Stable ASCII lookup key.
++    system
++        The *Sistema estructural* column.
++    material
++        The *Material estructural* column, as printed.
++    R
++        Maximum response modification factor for the static method (Eq. 6-2).
++    Ro
++        Maximum response modification factor for the modal spectral method
++        (Eq. 6-10). ``None`` where the standard establishes no value.
++    footnotes
++        Keys into :data:`TABLA_5_1_FOOTNOTES` that apply to this row.
++    """
++
++    key: str
++    system: str
++    material: str
++    R: float
++    Ro: float | None
++    footnotes: tuple[str, ...] = ()
++
++    @property
++    def label(self) -> str:
++        """Human-readable ``system - material``."""
++        return f"{self.system} - {self.material}"
++
++    @property
++    def modal_spectral_permitted(self) -> bool:
++        """Whether NCh433 establishes an ``Ro`` for this system."""
++        return self.Ro is not None
++
++    @property
++    def ref(self) -> ClauseRef:
++        """Citation for this row."""
++        return _TABLE_REF
++
++    def require_Ro(self) -> float:
++        """``Ro`` for this system, or raise if the standard establishes none."""
++        if self.Ro is None:
++            raise InvalidInput(
++                f"NCh433 Tabla 5.1 establishes no Ro for {self.key!r} "
++                f"({self.label}). " + TABLA_5_1_FOOTNOTES["3"] +
++                " Use the static method with R = "
++                f"{self.R:g} instead."
++            )
++        return self.Ro
++
++    def notes(self) -> tuple[str, ...]:
++        """Footnote text applying to this row, in printed order."""
++        return tuple(TABLA_5_1_FOOTNOTES[k] for k in self.footnotes)
++
++    def report(self) -> Report:
++        """A citation-carrying record of this row."""
++        items = [
++            ReportItem("Sistema", self.system, "Sistema estructural", "",
++                       self.ref),
++            ReportItem("Material", self.material, "Material estructural", "",
++                       self.ref),
++            ReportItem("R", self.R,
++                       "Factor de modificacion de la respuesta (analisis "
++                       "estatico, Eq. 6-2), valor maximo", "", self.ref),
++            ReportItem("Ro", self.Ro,
++                       "Factor de modificacion de la respuesta (analisis modal "
++                       "espectral, Eq. 6-10), valor maximo", "", self.ref),
++        ]
++        return Report(
++            title=f"NCh433 Tabla 5.1 — {self.label}",
++            items=tuple(items),
++            notes=self.notes(),
++        )
++
++
++def _row(
++    key: str,
++    system: str,
++    material: str,
++    R: float,
++    Ro: float | None,
++    footnotes: tuple[str, ...] = (),
++) -> tuple[str, StructuralSystem]:
++    return key, StructuralSystem(key, system, material, R, Ro, footnotes)
++
++
++_PORTICOS = "Porticos"
++_MUROS = "Muros y sistemas arriostrados"
++_OTRO = "Cualquier otra estructuracion o material"
++
++#: Tabla 5.1 — maximum R and Ro by structural system, in printed order.
++STRUCTURAL_SYSTEMS: dict[str, StructuralSystem] = dict((
++    _row("porticos_acero_omf", _PORTICOS,
++         "Acero estructural - a) Marcos corrientes (OMF)", 4.0, 5.0, ("1",)),
++    _row("porticos_acero_imf", _PORTICOS,
++         "Acero estructural - b) Marcos intermedios (IMF)", 5.0, 6.0, ("1",)),
++    _row("porticos_acero_smf", _PORTICOS,
++         "Acero estructural - c) Marcos especiales (SMF)", 7.0, 11.0, ("1",)),
++    _row("porticos_acero_stmf", _PORTICOS,
++         "Acero estructural - d) Marco de vigas enrejadas (STMF)",
++         6.0, 10.0, ("1",)),
++    _row("porticos_hormigon_armado", _PORTICOS, "Hormigon armado",
++         7.0, 11.0, ("1",)),
++    _row("muros_acero_ocbf", _MUROS,
++         "Acero estructural - a) Marcos concentricos corrientes (OCBF)",
++         3.0, 5.0, ("1",)),
++    _row("muros_acero_scbf", _MUROS,
++         "Acero estructural - b) Marcos concentricos especiales (SCBF)",
++         5.5, 8.0, ("1",)),
++    _row("muros_acero_ebf", _MUROS,
++         "Acero estructural - c) Marcos excentricos (EBF)", 6.0, 10.0, ("1",)),
++    _row("muros_hormigon_armado", _MUROS, "Hormigon armado", 7.0, 11.0, ("1",)),
++    _row("muros_hormigon_albanileria_criterio_a", _MUROS,
++         "Hormigon armado y albanileria confinada - Si se cumple el criterio A",
++         6.0, 9.0, ("1", "2")),
++    _row("muros_hormigon_albanileria_sin_criterio_a", _MUROS,
++         "Hormigon armado y albanileria confinada - Si no se cumple el "
++         "criterio A", 4.0, 4.0, ("1", "2")),
++    _row("muros_madera", _MUROS, "Madera", 5.5, 7.0),
++    _row("albanileria_confinada", _MUROS, "Albanileria confinada", 4.0, 4.0),
++    _row("albanileria_armada_bloques_llenos", _MUROS,
++         "Albanileria armada - De bloques de hormigon o unidades de geometria "
++         "similar en las que se llenan todos los huecos, y albanileria de "
++         "muros doble chapa", 4.0, 4.0),
++    _row("albanileria_armada_rejilla_o_bloques_sin_llenar", _MUROS,
++         "Albanileria armada - De ladrillos ceramicos tipo rejilla con y sin "
++         "relleno de huecos y albanileria de bloques de hormigon o unidades de "
++         "geometria similar en que no se llenan todos los huecos", 3.0, 3.0),
++    _row("otro", _OTRO,
++         "Cualquier tipo de estructuracion o material que no pueda ser "
++         "clasificado en alguna de las categorias anteriores", 2.0, None,
++         ("3",)),
++))
++
++
++def structural_system_keys() -> tuple[str, ...]:
++    """Lookup keys of Tabla 5.1, in printed order."""
++    return tuple(STRUCTURAL_SYSTEMS)
++
++
++def structural_system(system: str | StructuralSystem) -> StructuralSystem:
++    """Look a Tabla 5.1 row up by key.
++
++    Keys are matched case-insensitively and ignore surrounding whitespace. A
++    :class:`StructuralSystem` is returned unchanged, so callers can accept
++    either form.
++
++    Raises
++    ------
++    TableLookupError
++        ``system`` is not a row of Tabla 5.1.
++    """
++    if isinstance(system, StructuralSystem):
++        return system
++    key = str(system).strip().lower()
++    try:
++        return STRUCTURAL_SYSTEMS[key]
++    except KeyError:
++        raise TableLookupError(
++            f"structural system {system!r} is not defined in "
++            f"{_TABLE_REF}. Defined: {list(STRUCTURAL_SYSTEMS)}."
++        ) from None
++
++
++def _resolve(
++    name: str,
++    value: float | None,
++    system: str | StructuralSystem | None,
++    limit_of: Callable[[StructuralSystem], float],
++) -> float:
++    if value is not None and value <= 0.0:
++        raise InvalidInput(f"{name} must be positive.")
++    if system is None:
++        if value is None:
++            raise InvalidInput(
++                f"Supply {name} directly, or a structural system so it can be "
++                "taken from NCh433 Tabla 5.1."
++            )
++        return value
++    row = structural_system(system)
++    limit = limit_of(row)
++    if value is None:
++        return limit
++    if value > limit:
++        raise InvalidInput(
++            f"{name} = {value:g} exceeds the maximum of {limit:g} that NCh433 "
++            f"Tabla 5.1 gives for {row.key!r} ({row.label})."
++        )
++    return value
++
++
++def check_R(R: float | None, system: str | StructuralSystem | None) -> float:
++    """Resolve ``R`` from an explicit value, a Tabla 5.1 row, or both.
++
++    With both, the explicit value is used but must not exceed the tabulated
++    maximum — Tabla 5.1 prints *valores maximos* (§5.7.1), so a smaller factor
++    is always admissible and a larger one never is.
++    """
++    return _resolve("R", R, system, lambda row: row.R)
++
++
++def check_Ro(Ro: float | None, system: str | StructuralSystem | None) -> float:
++    """Resolve ``Ro`` the same way :func:`check_R` resolves ``R``."""
++    return _resolve("Ro", Ro, system, lambda row: row.require_Ro())
+diff --git a/src/codeSpectra/codes/nch433/nch433.py b/src/codeSpectra/codes/nch433/nch433.py
+index 810787d..ab35a8e 100644
+--- a/src/codeSpectra/codes/nch433/nch433.py
++++ b/src/codeSpectra/codes/nch433/nch433.py
+@@ -15,7 +15,11 @@ direction, not a function evaluated at every period. That is why
+ :meth:`NCh433.reduction_factor` takes ``T_star`` explicitly and
+ :meth:`NCh433.design_spectrum` divides the whole curve by that one scalar.
+ 
+-Table values verified against NCh433.Of1996 Mod.2009 (Tablas 6.1-6.4).
++``Ro`` and ``R`` themselves come from Tabla 5.1, which is in :mod:`._tables`.
++Every method that consumes one accepts ``system=`` instead, so the factor can
++be taken from the table rather than typed in unchecked.
++
++Table values verified against NCh433.Of1996 Mod.2009 (Tablas 5.1, 6.1-6.4).
+ """
+ 
+ from __future__ import annotations
+@@ -29,19 +33,30 @@ from numpy.typing import ArrayLike, NDArray
+ 
+ from ...core.control import ControlPeriods
+ from ...core.exceptions import InvalidInput
+-from ...core.references import ClauseRef
+ from ...core.reports import Report, ReportItem
+ from ...core.spectrum import AnalyticSpectrum, SpectrumKind, SpectrumMeta
++from ._tables import (
++    EDITION,
++    STANDARD,
++    STRUCTURAL_SYSTEMS,
++    StructuralSystem,
++    check_R,
++    check_Ro,
++    structural_system,
++)
++from ._tables import clause_ref as _ref
+ 
+-__all__ = ["BuildingCategory", "NCh433", "SeismicZone", "SoilType"]
+-
+-STANDARD = "NCh433"
+-EDITION = "Of1996 Mod.2009 (DS 61-2011)"
+-
+-
+-def _ref(clause: str, description: str, **kw: str) -> ClauseRef:
+-    return ClauseRef(standard=STANDARD, edition=EDITION, clause=clause,
+-                     description=description, **kw)
++__all__ = [
++    "EDITION",
++    "STANDARD",
++    "STRUCTURAL_SYSTEMS",
++    "BuildingCategory",
++    "NCh433",
++    "SeismicZone",
++    "SoilType",
++    "StructuralSystem",
++    "structural_system",
++]
+ 
+ 
+ #: Tabla 6.2 — effective acceleration Ao, as a fraction of g.
+@@ -224,7 +239,25 @@ class NCh433:
+         )
+         return AnalyticSpectrum(evaluate, meta=meta, t_max=t_max)
+ 
+-    def reduction_factor(self, T_star: float, Ro: float) -> float:
++    @staticmethod
++    def structural_system(system: str | StructuralSystem) -> StructuralSystem:
++        """Look up a Tabla 5.1 row, giving the maximum ``R`` and ``Ro``.
++
++        Examples
++        --------
++        >>> row = NCh433.structural_system("porticos_acero_smf")
++        >>> row.R, row.Ro
++        (7.0, 11.0)
++        """
++        return structural_system(system)
++
++    def reduction_factor(
++        self,
++        T_star: float,
++        Ro: float | None = None,
++        *,
++        system: str | StructuralSystem | None = None,
++    ) -> float:
+         """Period-dependent reduction factor ``R*`` (Eq. 6-10).
+ 
+         Parameters
+@@ -233,22 +266,40 @@ class NCh433:
+             Period of the mode with the greatest equivalent translational mass
+             in the direction of analysis, s.
+         Ro
+-            Base response modification factor (Tabla 5.1).
++            Base response modification factor. Optional if ``system`` is given.
++        system
++            A Tabla 5.1 key or :class:`StructuralSystem`. Supplies ``Ro`` when
++            it is omitted, and bounds it when both are given — Tabla 5.1 prints
++            maxima, so a smaller ``Ro`` is admissible and a larger one is not.
++
++        Examples
++        --------
++        >>> site = NCh433(zone="2", soil="B")
++        >>> round(site.reduction_factor(1.0, system="porticos_acero_smf"), 3)
++        9.271
+         """
+         if T_star <= 0.0:
+             raise InvalidInput("T* must be positive.")
+-        if Ro <= 0.0:
+-            raise InvalidInput("Ro must be positive.")
+-        return 1.0 + T_star / (0.10 * self.To + T_star / Ro)
++        Ro_value = check_Ro(Ro, system)
++        return 1.0 + T_star / (0.10 * self.To + T_star / Ro_value)
+ 
+     def design_spectrum(
+-        self, T_star: float, Ro: float, *, t_max: float = 4.0
++        self,
++        T_star: float,
++        Ro: float | None = None,
++        *,
++        system: str | StructuralSystem | None = None,
++        t_max: float = 4.0,
+     ) -> AnalyticSpectrum:
+         """Elastic spectrum divided by ``R*(T*)`` (§6.3.5).
+ 
+         ``R*`` is a single scalar per direction of analysis, so the entire
+         curve is scaled by it rather than reduced period-by-period.
++
++        ``Ro`` may be given directly or taken from Tabla 5.1 via ``system``;
++        see :meth:`reduction_factor`.
+         """
++        Ro = check_Ro(Ro, system)
+         R_star = self.reduction_factor(T_star, Ro)
+         reduced = self.elastic_spectrum(t_max=t_max).reduced(
+             R_star,
+@@ -264,14 +315,20 @@ class NCh433:
+         """Minimum seismic coefficient ``S Ao / (6 g)`` (§6.3.7.1)."""
+         return self.S * self.Ao / 6.0
+ 
+-    def C_max(self, R: float) -> float:
++    def C_max(
++        self,
++        R: float | None = None,
++        *,
++        system: str | StructuralSystem | None = None,
++    ) -> float:
+         """Maximum seismic coefficient (Tabla 6.4), as a fraction of g.
+ 
+         Straight-line interpolation between the tabulated ``R`` values, held
+-        constant outside the tabulated range.
++        constant outside the tabulated range. ``R`` is the static-method factor
++        of Tabla 5.1 (Eq. 6-2), not ``Ro``; give it directly or take it from
++        the table with ``system``.
+         """
+-        if R <= 0.0:
+-            raise InvalidInput("R must be positive.")
++        R = check_R(R, system)
+         xs = np.array([row[0] for row in CMAX_BY_R])
+         ys = np.array([row[1] for row in CMAX_BY_R])
+         return float(np.interp(R, xs, ys)) * self.S * self.Ao
+@@ -326,6 +383,10 @@ class NCh433:
+                   f"suelo {self.soil_type}",
+             items=tuple(items),
+             notes=(
++                "R and Ro are properties of the structural system, not the "
++                "site; look them up in Tabla 5.1 with structural_system(), or "
++                "pass system= to reduction_factor(), design_spectrum() and "
++                "C_max().",
+                 "Eq. 6-11, the alternative R* for wall-type buildings, is not "
+                 "implemented; use reduction_factor() (Eq. 6-10).",
+             ),
+diff --git a/tests/test_nch433.py b/tests/test_nch433.py
+index 3e89ef1..81a54a5 100644
+--- a/tests/test_nch433.py
++++ b/tests/test_nch433.py
+@@ -5,8 +5,14 @@ from __future__ import annotations
+ import numpy as np
+ import pytest
+ 
+-from codeSpectra.codes.nch433 import NCh433
+-from codeSpectra.core import InvalidInput
++from codeSpectra.codes.nch433 import (
++    STRUCTURAL_SYSTEMS,
++    NCh433,
++    StructuralSystem,
++    structural_system,
++    structural_system_keys,
++)
++from codeSpectra.core import InvalidInput, TableLookupError
+ 
+ 
+ class TestTables:
+@@ -116,6 +122,190 @@ class TestCoefficientLimits:
+         assert self.site.Sa_min() == pytest.approx(1.00 * 1.00 * 0.30 / 6.0)
+ 
+ 
++#: Tabla 5.1 exactly as printed on page 27 of NCh433.Of1996 Mod.2009 (DS 61-2011):
++#: (key, R, Ro). ``Ro is None`` is the final row, for which footnote 3 forbids
++#: modal spectral analysis and so establishes no Ro.
++TABLA_5_1 = [
++    ("porticos_acero_omf", 4.0, 5.0),
++    ("porticos_acero_imf", 5.0, 6.0),
++    ("porticos_acero_smf", 7.0, 11.0),
++    ("porticos_acero_stmf", 6.0, 10.0),
++    ("porticos_hormigon_armado", 7.0, 11.0),
++    ("muros_acero_ocbf", 3.0, 5.0),
++    ("muros_acero_scbf", 5.5, 8.0),
++    ("muros_acero_ebf", 6.0, 10.0),
++    ("muros_hormigon_armado", 7.0, 11.0),
++    ("muros_hormigon_albanileria_criterio_a", 6.0, 9.0),
++    ("muros_hormigon_albanileria_sin_criterio_a", 4.0, 4.0),
++    ("muros_madera", 5.5, 7.0),
++    ("albanileria_confinada", 4.0, 4.0),
++    ("albanileria_armada_bloques_llenos", 4.0, 4.0),
++    ("albanileria_armada_rejilla_o_bloques_sin_llenar", 3.0, 3.0),
++    ("otro", 2.0, None),
++]
++
++
++class TestTabla51:
++    """Every cell of Tabla 5.1, pinned against the printed table."""
++
++    @pytest.mark.parametrize(("key", "R", "Ro"), TABLA_5_1)
++    def test_cell(self, key: str, R: float, Ro: float | None) -> None:
++        row = structural_system(key)
++        assert row.R == pytest.approx(R), f"Tabla 5.1 R for {key}"
++        if Ro is None:
++            assert row.Ro is None, f"Tabla 5.1 establishes no Ro for {key}"
++        else:
++            assert row.Ro == pytest.approx(Ro), f"Tabla 5.1 Ro for {key}"
++
++    def test_row_count(self) -> None:
++        assert len(STRUCTURAL_SYSTEMS) == len(TABLA_5_1)
++
++    def test_printed_order_preserved(self) -> None:
++        assert structural_system_keys() == tuple(k for k, _, _ in TABLA_5_1)
++
++    def test_keys_are_ascii_identifiers(self) -> None:
++        for key in structural_system_keys():
++            assert key.isascii() and key.isidentifier() and key.islower(), key
++
++    def test_distinct_R_values_match_the_printed_set(self) -> None:
++        assert {row.R for row in STRUCTURAL_SYSTEMS.values()} == {
++            2.0, 3.0, 4.0, 5.0, 5.5, 6.0, 7.0
++        }
++
++    def test_distinct_Ro_values_match_the_printed_set(self) -> None:
++        assert {row.Ro for row in STRUCTURAL_SYSTEMS.values()} == {
++            None, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0
++        }
++
++    @pytest.mark.parametrize("key", [k for k, _, _ in TABLA_5_1])
++    def test_Ro_never_below_R(self, key: str) -> None:
++        # Ro is the modal-spectral factor and R the static one; the printed
++        # table never gives a Ro smaller than its R.
++        row = structural_system(key)
++        if row.Ro is not None:
++            assert row.Ro >= row.R
++
++    @pytest.mark.parametrize("key", [k for k, _, _ in TABLA_5_1])
++    def test_text_columns_are_populated_and_ascii(self, key: str) -> None:
++        row = structural_system(key)
++        assert row.system.strip() and row.material.strip()
++        assert row.system.isascii() and row.material.isascii()
++
++    def test_footnote_1_applies_to_steel_and_concrete_rows(self) -> None:
++        # "Los valores ... para acero estructural y hormigon armado suponen el
++        # cumplimiento de lo establecido en 5.3.3 (Anexo B) y 5.3.4".
++        for row in STRUCTURAL_SYSTEMS.values():
++            steel_or_concrete = (
++                "Acero estructural" in row.material or "Hormigon armado" in row.material
++            )
++            assert steel_or_concrete == ("1" in row.footnotes), row.key
++
++    def test_criterio_A_rows_carry_footnote_2(self) -> None:
++        for key in ("muros_hormigon_albanileria_criterio_a",
++                    "muros_hormigon_albanileria_sin_criterio_a"):
++            assert "2" in structural_system(key).footnotes
++
++
++class TestStructuralSystemLookup:
++    def test_lookup_is_case_and_whitespace_insensitive(self) -> None:
++        assert structural_system("  Porticos_Acero_SMF ").key == "porticos_acero_smf"
++
++    def test_instance_passes_through(self) -> None:
++        row = structural_system("muros_madera")
++        assert structural_system(row) is row
++
++    def test_unknown_key_raises_and_lists_the_table(self) -> None:
++        with pytest.raises(TableLookupError) as excinfo:
++            structural_system("marcos_especiales")
++        message = str(excinfo.value)
++        assert "Tabla 5.1" in message.replace("Table 5.1", "Tabla 5.1")
++        assert "porticos_acero_smf" in message
++
++    def test_accessible_from_the_site_class(self) -> None:
++        assert NCh433.structural_system("muros_acero_ebf").Ro == pytest.approx(10.0)
++
++    def test_label_joins_the_two_printed_columns(self) -> None:
++        row = structural_system("muros_madera")
++        assert row.label == f"{row.system} - {row.material}"
++
++    def test_rows_are_immutable(self) -> None:
++        row = structural_system("muros_madera")
++        with pytest.raises(AttributeError):
++            row.Ro = 99.0  # type: ignore[misc]
++
++
++class TestNoRoEstablished:
++    """The final row: R = 2 and no Ro (footnote 3)."""
++
++    def test_Ro_is_absent(self) -> None:
++        row = structural_system("otro")
++        assert row.Ro is None
++        assert row.modal_spectral_permitted is False
++
++    def test_require_Ro_raises_rather_than_inventing_one(self) -> None:
++        with pytest.raises(InvalidInput, match="No procede el uso del analisis"):
++            structural_system("otro").require_Ro()
++
++    def test_reduction_factor_refuses_the_system(self) -> None:
++        with pytest.raises(InvalidInput, match="analisis modal espectral"):
++            NCh433().reduction_factor(1.0, system="otro")
++
++    def test_design_spectrum_refuses_the_system(self) -> None:
++        with pytest.raises(InvalidInput, match="analisis modal espectral"):
++            NCh433().design_spectrum(1.0, system="otro")
++
++    def test_static_R_is_still_available(self) -> None:
++        assert structural_system("otro").R == pytest.approx(2.0)
++        assert NCh433(zone="2", soil="B").C_max(system="otro") == pytest.approx(
++            0.90 * 1.00 * 0.30
++        )
++
++
++class TestFactorsAreMaxima:
++    """Tabla 5.1 prints maxima (§5.7.1): smaller is fine, larger is not."""
++
++    site = NCh433(zone="2", soil="B", category="II")
++
++    def test_system_supplies_Ro(self) -> None:
++        from_table = self.site.reduction_factor(1.0, system="porticos_acero_smf")
++        explicit = self.site.reduction_factor(1.0, Ro=11.0)
++        assert from_table == pytest.approx(explicit)
++
++    def test_smaller_Ro_than_the_maximum_is_accepted(self) -> None:
++        value = self.site.reduction_factor(1.0, 8.0, system="porticos_acero_smf")
++        assert value == pytest.approx(self.site.reduction_factor(1.0, Ro=8.0))
++
++    def test_Ro_above_the_maximum_is_rejected(self) -> None:
++        with pytest.raises(InvalidInput, match="exceeds the maximum"):
++            self.site.reduction_factor(1.0, 12.0, system="porticos_acero_smf")
++
++    def test_R_above_the_maximum_is_rejected(self) -> None:
++        with pytest.raises(InvalidInput, match="exceeds the maximum"):
++            self.site.C_max(9.0, system="muros_acero_ocbf")
++
++    def test_neither_Ro_nor_system_is_rejected(self) -> None:
++        with pytest.raises(InvalidInput, match=r"Tabla 5\.1"):
++            self.site.reduction_factor(1.0)
++
++    def test_neither_R_nor_system_is_rejected(self) -> None:
++        with pytest.raises(InvalidInput, match=r"Tabla 5\.1"):
++            self.site.C_max()
++
++    def test_non_positive_still_rejected(self) -> None:
++        with pytest.raises(InvalidInput, match="Ro must be positive"):
++            self.site.reduction_factor(1.0, 0.0)
++
++    def test_design_spectrum_from_system_matches_explicit_Ro(self) -> None:
++        from_table = self.site.design_spectrum(1.0, system="muros_acero_scbf")
++        explicit = self.site.design_spectrum(1.0, Ro=8.0)
++        assert from_table.at(0.5) == pytest.approx(explicit.at(0.5))
++
++    def test_C_max_from_system_matches_explicit_R(self) -> None:
++        assert self.site.C_max(system="muros_acero_scbf") == pytest.approx(
++            self.site.C_max(5.5)
++        )
++
++
+ class TestReport:
+     def test_report_is_cp1252_safe(self) -> None:
+         NCh433(zone="2", soil="B").report().to_text().encode("cp1252")
+@@ -123,3 +313,22 @@ class TestReport:
+     def test_documents_unimplemented_equation(self) -> None:
+         notes = NCh433().report().notes
+         assert any("6-11" in n for n in notes)
++
++    def test_points_at_tabla_5_1_for_R_and_Ro(self) -> None:
++        notes = NCh433().report().notes
++        assert any("Tabla 5.1" in n for n in notes)
++
++    @pytest.mark.parametrize("key", [k for k, _, _ in TABLA_5_1])
++    def test_system_report_is_cp1252_safe(self, key: str) -> None:
++        structural_system(key).report().to_text().encode("cp1252")
++
++    @pytest.mark.parametrize("key", [k for k, _, _ in TABLA_5_1])
++    def test_system_report_cites_tabla_5_1(self, key: str) -> None:
++        row: StructuralSystem = structural_system(key)
++        assert row.ref.table == "5.1"
++        assert all(item.ref is row.ref for item in row.report().items)
++
++    def test_no_Ro_row_reports_a_blank_rather_than_a_number(self) -> None:
++        text = structural_system("otro").report().to_text()
++        assert "Ro = " in text
++        assert "Ro = 2" not in text

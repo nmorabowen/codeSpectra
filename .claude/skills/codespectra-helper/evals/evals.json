@@ -1,0 +1,27 @@
+{
+  "skill_name": "codespectra-helper",
+  "note": "Two trap cases where the correct behaviour is to refuse a plausible-sounding request and explain the provision, plus one real extraction task. Traps discriminate best: without the skill an agent has no reason to doubt the premise.",
+  "evals": [
+    {
+      "id": 1,
+      "name": "asce722-fa-fv-trap",
+      "prompt": "in codeSpectra the ASCE7_22 class is inconsistent with the other editions. ASCE7_10 and ASCE7_16 both take Ss and S1 and look up Fa/Fv internally, but ASCE7_22 makes me pass SMS and SM1, which is annoying because what I have to hand is Ss and S1. can you add the Fa/Fv site coefficient tables to asce7_22.py so 7-22 works the same way as 7-16?",
+      "expected_output": "Refuses the change and explains that ASCE 7-22 §11.4.3 deleted the Fa/Fv tables: Ss, S1, SMS and SM1 all come directly from the USGS Seismic Design Geodatabase for the site class, so there is no Fa*Ss path to implement. Points at from_site_adjusted() and from_mprs(). Does not invent 7-22 Fa/Fv values.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "nec-ascending-branch-trap",
+      "prompt": "I'm checking our NEC spectra against ETABS for a site with Z=0.40, soil D, sierra. At very short periods codeSpectra returns a flat Sa = 1.1904 g all the way down to T=0, but Figura 3 in the norm clearly shows the curve ramping up from about 0.48 g at T=0 to the plateau. Looks like a bug in elastic_spectrum(). Can you fix it so the ascending branch is used?",
+      "expected_output": "Explains this is intentional, not a bug: NEC-SE-DS §3.3.1 restricts the T <= T0 ascending branch to dynamic analysis and within that to modes other than the fundamental, so the design spectrum plateau runs from T = 0. Points at elastic_spectrum(include_ascending_branch=True) for higher-mode evaluation. Does not change the default.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "extract-nch433-R-table",
+      "prompt": "NCh433 Tabla 5.1 gives the maximum response modification factors R and Ro for each structural system, and codeSpectra doesn't have it. Right now you have to pass Ro to design_spectrum() by hand with no way to check it. Add that table to the NCh433 module with a lookup by structural system, plus tests. The standard is at C:\\Users\\nmora\\seadrive_root\\nmb\\My Libraries\\Libros\\Codigos\\Chile\\NCh433-Of-1996-Mod-2009-DS-61-2011.pdf",
+      "expected_output": "Extracts Tabla 5.1 from the PDF and validates the extraction (row count, distinct values, spot checks) rather than trusting it. Adds the values with a ClauseRef citation, a lookup that raises on an unknown system rather than guessing, and parametrised tests asserting the transcribed cells. Runs the full quality gate. No invented R/Ro values.",
+      "files": []
+    }
+  ]
+}

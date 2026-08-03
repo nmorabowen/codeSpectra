@@ -1,0 +1,194 @@
+diff --git a/README.md b/README.md
+index 9d8392e..b97abf8 100644
+--- a/README.md
++++ b/README.md
+@@ -215,6 +215,27 @@ site = ASCE7_22.from_mprs(periods, sa_mcer, site_class="CD", TL=8.0)
+ site = ASCE7_22.from_site_adjusted(SMS=1.5, SM1=1.02, site_class="CD")
+ ```
+ 
++`Ss` and `S1` may be passed to either constructor, but only as reporting
++metadata: they appear in the report and enable the §11.6 `S1 >= 0.75`
++override. They cannot produce `SMS`/`SM1`, so constructing `ASCE7_22` with
++`Ss`/`S1` alone — the shape of the 7-16 call — raises `InvalidInput` naming
++both supported constructors, instead of silently returning a zero spectrum.
++
++If all you hold is 7-16 mapped values and you want a *preliminary* number
++ahead of a geodatabase query, borrow the 7-16 coefficients explicitly and
++record that you did:
++
++```python
++s16 = ASCE7_16(Ss=1.5, S1=0.6, site_class="D", TL=8.0)
++site = ASCE7_22.from_site_adjusted(SMS=s16.SMS, SM1=s16.SM1,
++                                   site_class="D", TL=8.0)
++```
++
++This is **not** ASCE 7-22 compliant — 7-22's ground motions, site classes and
++site amplification all differ from 7-16's, and Site Classes BC, CD and DE have
++no 7-16 coefficients at all. It is deliberately not wrapped in a constructor,
++so it cannot be reached by accident.
++
+ ## Spectra compose
+ 
+ `Spectrum` is a value object. Operations return new spectra and never mutate.
+diff --git a/src/codeSpectra/codes/asce7/asce7_22.py b/src/codeSpectra/codes/asce7/asce7_22.py
+index 913c78c..69a9d7b 100644
+--- a/src/codeSpectra/codes/asce7/asce7_22.py
++++ b/src/codeSpectra/codes/asce7/asce7_22.py
+@@ -18,6 +18,14 @@ Two construction paths mirror the two the standard defines:
+     are unavailable. You supply ``SMS`` and ``SM1``.
+ 
+ The two are **not** interchangeable for long-period or irregular structures.
++
++``Ss`` and ``S1`` are accepted on both paths, but purely as reporting metadata
++— they let the §11.6 ``S1 >= 0.75`` override be evaluated and they show up in
++the report. They drive no calculation, because 7-22 gives no way to turn them
++into ``SMS``/``SM1``. Constructing the class with only ``Ss``/``S1``, the way
++:class:`~codeSpectra.codes.asce7.asce7_16.ASCE7_16` is constructed, raises
++:class:`~codeSpectra.core.exceptions.InvalidInput` rather than silently
++yielding a zero spectrum.
+ """
+ 
+ from __future__ import annotations
+@@ -49,7 +57,7 @@ from ._shared import (
+     two_period_spectrum,
+ )
+ 
+-__all__ = ["ASCE7_22", "MPRS_PERIODS", "SpectrumBasis"]
++__all__ = ["ASCE7_22", "MPRS_PERIODS", "NO_SITE_COEFFICIENTS", "SpectrumBasis"]
+ 
+ EDITION = "7-22"
+ 
+@@ -63,6 +71,37 @@ MPRS_PERIODS: tuple[float, ...] = (
+ PERMITTED_SITE_CLASSES = ("A", "B", "BC", "C", "CD", "D", "DE", "E", "F")
+ 
+ 
++#: Why no site coefficients exist in this edition. Reused in error text.
++NO_SITE_COEFFICIENTS = (
++    "ASCE 7-22 has no Fa/Fv site coefficients: §11.4.3 reads SMS and SM1 "
++    "directly from the USGS Seismic Design Geodatabase for the applicable site "
++    "class, so mapped Ss/S1 plus a site class cannot be converted to SMS/SM1 "
++    "the way ASCE 7-10 and 7-16 allow."
++)
++
++
++def _missing_site_adjusted_message(Ss: float | None, S1: float | None) -> str:
++    """Explain what to supply instead of Ss/S1, and why."""
++    if Ss is not None or S1 is not None:
++        lead = (
++            "ASCE7_22 was given Ss/S1 but no site-adjusted values. On this "
++            "class Ss and S1 are reporting metadata only and drive no "
++            "calculation."
++        )
++    else:
++        lead = "ASCE7_22 is missing the site-adjusted values it needs."
++    return (
++        f"{lead} {NO_SITE_COEFFICIENTS} Build with "
++        "ASCE7_22.from_mprs(periods, sa_mcer, ...) from the geodatabase "
++        "multi-period MCEr ordinates (§11.4.5.1, the default basis), or with "
++        "ASCE7_22.from_site_adjusted(SMS=..., SM1=...) where §11.4.5 "
++        "Exception 2 applies. If all you hold is 7-16 mapped values and you "
++        "want a preliminary, non-7-22-compliant estimate, make that explicit: "
++        "take .SMS/.SM1 off an ASCE7_16 instance, pass them to "
++        "from_site_adjusted, and record that the coefficients are 7-16's."
++    )
++
++
+ class SpectrumBasis(str, Enum):
+     """Which §11.4.5 path produced the spectrum."""
+ 
+@@ -80,6 +119,18 @@ class ASCE7_22:
+     Build with :meth:`from_mprs` or :meth:`from_site_adjusted` rather than
+     calling the constructor directly — the two paths take different inputs.
+ 
++    Parameters
++    ----------
++    SMS, SM1
++        Site-adjusted MCEr parameters read from the USGS Seismic Design
++        Geodatabase for the applicable site class (§11.4.3). These are the
++        real inputs. 7-22 removed the ``Fa``/``Fv`` tables, so unlike 7-10 and
++        7-16 there is no ``SMS = Fa*Ss`` relationship to lean on.
++    Ss, S1
++        Optional reporting metadata. Recorded in the report and used for the
++        §11.6 ``S1 >= 0.75`` override, but they do **not** produce
++        ``SMS``/``SM1`` — supplying them alone is an error.
++
+     Examples
+     --------
+     >>> site = ASCE7_22.from_site_adjusted(SMS=1.5, SM1=1.02, site_class="CD")
+@@ -113,6 +164,13 @@ class ASCE7_22:
+             )
+         if self.TL <= 0.0:
+             raise InvalidInput("TL must be positive.")
++        incomplete = (
++            len(self.mprs_mcer) < 2
++            if self.basis is SpectrumBasis.MULTI_PERIOD
++            else self.SMS <= 0.0
++        )
++        if incomplete:
++            raise InvalidInput(_missing_site_adjusted_message(self.Ss, self.S1))
+ 
+     # -- Constructors ------------------------------------------------------
+     @classmethod
+@@ -332,6 +390,18 @@ class ASCE7_22:
+                        ref(EDITION, "11.4.5", "Design response spectrum")),
+             ReportItem("Ie", self.Ie, "Seismic importance factor", "",
+                        ref(EDITION, "11.5.1", table="1.5-2")),
++        ]
++        if self.Ss is not None:
++            items.append(
++                ReportItem("Ss", self.Ss, "Mapped MCEr short-period acceleration "
++                                          "(reported only; no Fa applies)", "g", geodb)
++            )
++        if self.S1 is not None:
++            items.append(
++                ReportItem("S1", self.S1, "Mapped MCEr 1-s acceleration "
++                                          "(reported only; no Fv applies)", "g", geodb)
++            )
++        items += [
+             ReportItem("SMS", self.SMS, "Site-adjusted MCEr, short period", "g", geodb),
+             ReportItem("SM1", self.SM1, "Site-adjusted MCEr, 1 s", "g", geodb),
+             ReportItem("SDS", self.SDS, "(2/3) SMS", "g",
+diff --git a/tests/test_asce7.py b/tests/test_asce7.py
+index 9c49e48..567401c 100644
+--- a/tests/test_asce7.py
++++ b/tests/test_asce7.py
+@@ -337,6 +337,39 @@ class TestASCE722:
+         site = ASCE7_22.from_site_adjusted(SMS=1.5, SM1=1.02, site_class="CD")
+         assert any("Exception 2" in n for n in site.report().notes)
+ 
++    def test_ss_s1_alone_is_rejected_not_silently_zero(self) -> None:
++        """The 7-16-shaped call must fail loudly: 7-22 deleted Fa/Fv."""
++        with pytest.raises(InvalidInput) as excinfo:
++            ASCE7_22(Ss=1.5, S1=0.6, site_class="D")
++        message = str(excinfo.value)
++        assert "no Fa/Fv site coefficients" in message
++        # The message must name both supported constructors.
++        assert "from_mprs" in message
++        assert "from_site_adjusted" in message
++
++    def test_bare_construction_is_rejected(self) -> None:
++        with pytest.raises(InvalidInput, match="site-adjusted"):
++            ASCE7_22()
++
++    def test_ss_s1_retained_as_reporting_metadata(self) -> None:
++        """Supplied alongside SMS/SM1 they are recorded, and drive the SDC."""
++        site = ASCE7_22.from_site_adjusted(
++            SMS=1.5, SM1=1.02, site_class="CD", Ss=1.8, S1=0.8
++        )
++        assert site.report()["Ss"] == pytest.approx(1.8)
++        # S1 >= 0.75 triggers the §11.6 override.
++        assert site.seismic_design_category is SeismicDesignCategory.E
++        assert not any("S1 was not supplied" in n for n in site.report().notes)
++
++    def test_asce7_16_handoff_is_the_documented_escape_hatch(self) -> None:
++        """7-16 coefficients can be borrowed, but only by saying so explicitly."""
++        s16 = ASCE7_16(Ss=1.5, S1=0.6, site_class="D", TL=8.0)
++        s22 = ASCE7_22.from_site_adjusted(
++            SMS=s16.SMS, SM1=s16.SM1, site_class="D", TL=8.0
++        )
++        assert s22.SDS == pytest.approx(s16.SDS)
++        assert s22.SD1 == pytest.approx(s16.SD1)
++
+ 
+ class TestReports:
+     def test_report_carries_citations(self) -> None:

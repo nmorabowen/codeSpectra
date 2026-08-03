@@ -1,0 +1,44 @@
+{
+  "expectations": [
+    {
+      "text": "Raises the licensing question before vendoring",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Identifies OSM as ODbL / share-alike",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Reads ODbL as permitting redistribution with share-alike, not as a blocker",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Notes the MIT conflict / derived-database obligation",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "If bundling: obligations satisfied and the change of terms surfaced; else: lawful alternative named",
+      "passed": true,
+      "evidence": "bundled"
+    },
+    {
+      "text": "Evaluates an alternative source rather than taking OSM as given",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Notes Sto. Domingo / Zona no delimitada stay unresolvable",
+      "passed": true,
+      "evidence": ""
+    },
+    {
+      "text": "Runs and reports the quality gate",
+      "passed": true,
+      "evidence": ""
+    }
+  ]
+}
